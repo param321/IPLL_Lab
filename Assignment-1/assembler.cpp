@@ -2,7 +2,7 @@
 
 using namespace std;
 
-const map<string,string> SYMTAB = {
+const unordered_map<string,string> SYMTAB = {
     {"LDA","00"},
     {"LDX","04"},
     {"LDL","08"},
@@ -28,7 +28,46 @@ const map<string,string> SYMTAB = {
     {"WD","DC"}
 };
 
+void readline(string* LABEL,string* OPCODE,string* OPERAND){
+    string line;
+    getline(cin,line);
+    *LABEL = "";
+    *OPCODE = "";
+    *OPERAND = "";
+    int pointer = 0;
+    if(line[0]!=' '){
+        for(pointer = 0;pointer < line.length();pointer++){
+            if(line[pointer]==' '){
+                break;
+            }else{
+                *LABEL += line[pointer];
+            }
+        }
+    }
+    while(line[pointer]==' '){
+        pointer++;
+    }
+    for(;pointer < line.length();pointer++){
+        if(line[pointer]==' '){
+            break;
+        }else{
+            *OPCODE += line[pointer];
+        }
+    }
+    while(line[pointer]==' '){
+        pointer++;
+    }
+    for(;pointer < line.length();pointer++){
+        if(line[pointer]==' '){
+            break;
+        }else{
+            *OPERAND += line[pointer];
+        }
+    }
+}
+
 int main(){
-    cout<<SYMTAB.at("STL")<<endl;
+    string LABEL, OPCODE, OPERAND;
+    readline(&LABEL,&OPCODE,&OPERAND);
     return 0;
 }
