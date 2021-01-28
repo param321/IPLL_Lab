@@ -156,7 +156,7 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
     bool ifcomment = false;
     string LOCCTR ;
     string START_ADDR = intToHex(0);
-    readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
     
     if(OPCODE == "START"){
         START_ADDR = OPERAND;
@@ -200,8 +200,33 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
     fin.close();
 }
 
+void pass2(string LABEL,string OPCODE,string OPERAND){
+    ifstream fin; 
+    fin.open("intermediate.txt");
+
+    ofstream fout;
+    fout.open("object.txt");
+
+    bool ifcomment = false;
+
+    ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    if(OPCODE == "START"){
+        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    }
+    while(OPCODE != "END"){
+        if(ifcomment == false){
+
+        }
+        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    }
+
+    fout.close();
+    fin.close();
+}
+
 int main(){
     string LABEL, OPCODE, OPERAND;
     pass1(LABEL,OPCODE,OPERAND);
+    pass2(LABEL,OPCODE,OPERAND);
     return 0;
 }
