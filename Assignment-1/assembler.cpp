@@ -2,6 +2,8 @@
 
 using namespace std;
 
+string PROG_LEN;
+
 const unordered_map<string,string> OPTAB = {
     {"LDA","00"},
     {"LDX","04"},
@@ -28,15 +30,18 @@ const unordered_map<string,string> OPTAB = {
     {"WD","DC"}
 };
 
-bool readline(string* LABEL,string* OPCODE,string* OPERAND){
+unordered_map <string,string> SYMTAB;
+
+bool readline(string* LABEL,string* OPCODE,string* OPERAND,ifstream *fin){
     string line;
-    getline(cin,line);
+    getline(*fin,line);
     *LABEL = "";
     *OPCODE = "";
     *OPERAND = "";
     int pointer = 0;
     if(line[0]=='.'){
-        return false;
+        *LABEL = line;
+        return true;
     }
     if(line[0]!=' '){
         for(pointer = 0;pointer < line.length();pointer++){
@@ -67,7 +72,11 @@ bool readline(string* LABEL,string* OPCODE,string* OPERAND){
             *OPERAND += line[pointer];
         }
     }
-    return true;
+    return false;
+}
+
+void writeline(string LABEL,string OPCODE,string OPERAND,ofstream* fout){
+    *fout<<LABEL<<"  "<<OPCODE<<"  "<<OPERAND<<endl;
 }
 
 char till15toHex(int n){
@@ -113,14 +122,82 @@ int hexToInt(string s){
     return ans;
 }
 
-void pass1(string LABEL,string OPCODE,string OPERAND){
-    readline(&LABEL,&OPCODE,&OPERAND);
-    string LOCCTR ;
-    if(OPCODE == "START"){
-        cout<<"YESS"<<endl;
-    }else{
-        LOCCTR = "000000";
+int stringToInt(string s){
+    reverse(s.begin(),s.end());
+    int j=1;
+    int ans=0;
+    for(int i=0;i<s.length();i++){
+        ans+= ((s[i]-'0')*j);
+        j=j*10;
     }
+    return ans;
+}
+
+int bytelength(string s){
+    int len = 0;
+    if(s[0]=='X'){
+        len = (s.length()-3)/2;
+    }else if(s[0]=='C'){
+        len = s.length() -3;
+    }
+    return len;
+}
+
+
+
+void pass1(string LABEL,string OPCODE,string OPERAND){
+
+    ifstream fin; 
+    fin.open("source.txt");
+
+    ofstream fout;
+    fout.open("intermediate.txt");
+
+    bool ifcomment = false;
+    string LOCCTR ;
+    string START_ADDR = intToHex(0);
+    readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    
+    if(OPCODE == "START"){
+        START_ADDR = OPERAND;
+        LOCCTR = OPERAND;
+        writeline(LABEL,OPCODE,OPERAND,&fout);
+        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    }else{
+        LOCCTR = intToHex(0);
+    }
+    while(OPCODE != "END"){
+        if(ifcomment == false){
+            if(LABEL!=""){
+                if(SYMTAB.find(LABEL)!=SYMTAB.end()){
+                    cout<<"ERROR:DUPLICATE SYMBOL"<<endl;
+                }else{
+                    SYMTAB[LABEL]=LOCCTR;
+                }
+            }
+            if(OPTAB.find(OPCODE)!=OPTAB.end()){
+                LOCCTR = intToHex(3 + hexToInt(LOCCTR));
+            }else if(OPCODE == "WORD"){
+                LOCCTR = intToHex(3 + hexToInt(LOCCTR));
+            }else if(OPCODE == "RESW"){
+                LOCCTR = intToHex((3*stringToInt(OPERAND)) + hexToInt(LOCCTR));
+            }else if(OPCODE == "RESB"){
+                LOCCTR = intToHex(stringToInt(OPERAND) + hexToInt(LOCCTR));
+            }else if(OPCODE == "BYTE"){
+                LOCCTR = intToHex(bytelength(OPERAND) + hexToInt(LOCCTR));
+            }else{
+                cout<<"ERROR:INVALID OPCODE"<<endl;
+            }
+        }
+        writeline(LABEL,OPCODE,OPERAND,&fout);
+        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    }
+
+    writeline(LABEL,OPCODE,OPERAND,&fout);
+    PROG_LEN = intToHex(hexToInt(LOCCTR)-hexToInt(START_ADDR));
+    cout<<PROG_LEN<<endl;
+    fout.close();
+    fin.close();
 }
 
 int main(){
