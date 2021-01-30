@@ -66,7 +66,7 @@ bool readline(string* LABEL,string* OPCODE,string* OPERAND,ifstream *fin){
         pointer++;
     }
     for(;pointer < line.length();pointer++){
-        if(line[pointer]==' '){
+        if(line[pointer]==' '||line[pointer]==','){
             break;
         }else{
             *OPERAND += line[pointer];
@@ -111,6 +111,18 @@ string intToHex(int n){
     return s;
 }
 
+string intToHexLen2(int n){
+    string s = "";
+    while(n!=0){
+        s = till15toHex(n%16) + s;
+        n = n / 16;
+    }
+    while(s.length()<2){
+        s = '0' + s;
+    }
+    return s;
+}
+
 int hexToInt(string s){
     reverse(s.begin(),s.end());
     int j=1;
@@ -143,7 +155,27 @@ int bytelength(string s){
     return len;
 }
 
+void incrLOCCTR(string* LOCCTR,string OPCODE,string OPERAND){
+    if(OPTAB.find(OPCODE)!=OPTAB.end()){
+        *LOCCTR = intToHex(3 + hexToInt(*LOCCTR));
+    }else if(OPCODE == "WORD"){
+        *LOCCTR = intToHex(3 + hexToInt(*LOCCTR));
+    }else if(OPCODE == "RESW"){
+        *LOCCTR = intToHex((3*stringToInt(OPERAND)) + hexToInt(*LOCCTR));
+    }else if(OPCODE == "RESB"){
+        *LOCCTR = intToHex(stringToInt(OPERAND) + hexToInt(*LOCCTR));
+    }else if(OPCODE == "BYTE"){
+        *LOCCTR = intToHex(bytelength(OPERAND) + hexToInt(*LOCCTR));
+    }else{
+        cout<<"ERROR:INVALID OPCODE"<<endl;
+    }
+}
 
+string assembleObjectCode(string OPERAND_ADDR,string OPCODE){
+    string ObjectCode = OPTAB.at(OPCODE);
+    ObjectCode += OPERAND_ADDR.substr(2);
+    return ObjectCode;
+}
 
 void pass1(string LABEL,string OPCODE,string OPERAND){
 
@@ -159,8 +191,8 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
     ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
     
     if(OPCODE == "START"){
-        START_ADDR = OPERAND;
-        LOCCTR = OPERAND;
+        START_ADDR = (intToHex(hexToInt(OPERAND)));
+        LOCCTR = (intToHex(hexToInt(OPERAND)));
         writeline(LABEL,OPCODE,OPERAND,&fout);
         ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
     }else{
@@ -175,19 +207,7 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
                     SYMTAB[LABEL]=LOCCTR;
                 }
             }
-            if(OPTAB.find(OPCODE)!=OPTAB.end()){
-                LOCCTR = intToHex(3 + hexToInt(LOCCTR));
-            }else if(OPCODE == "WORD"){
-                LOCCTR = intToHex(3 + hexToInt(LOCCTR));
-            }else if(OPCODE == "RESW"){
-                LOCCTR = intToHex((3*stringToInt(OPERAND)) + hexToInt(LOCCTR));
-            }else if(OPCODE == "RESB"){
-                LOCCTR = intToHex(stringToInt(OPERAND) + hexToInt(LOCCTR));
-            }else if(OPCODE == "BYTE"){
-                LOCCTR = intToHex(bytelength(OPERAND) + hexToInt(LOCCTR));
-            }else{
-                cout<<"ERROR:INVALID OPCODE"<<endl;
-            }
+            incrLOCCTR(&LOCCTR,OPCODE,OPERAND);
         }
         writeline(LABEL,OPCODE,OPERAND,&fout);
         ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
@@ -195,12 +215,12 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
 
     writeline(LABEL,OPCODE,OPERAND,&fout);
     PROG_LEN = intToHex(hexToInt(LOCCTR)-hexToInt(START_ADDR));
-    cout<<PROG_LEN<<endl;
     fout.close();
     fin.close();
 }
 
 void pass2(string LABEL,string OPCODE,string OPERAND){
+
     ifstream fin; 
     fin.open("intermediate.txt");
 
@@ -209,17 +229,92 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
 
     bool ifcomment = false;
 
+    string LOCCTR = intToHex(0);
+    string START_ADDR = intToHex(0);
+
     ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+
+    string prevLABEL = LABEL;
+    string prevOPERAND = OPERAND;
+
     if(OPCODE == "START"){
+        START_ADDR = (intToHex(hexToInt(OPERAND)));
+        LOCCTR = (intToHex(hexToInt(OPERAND)));
         ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
     }
+
+    string HEADER = "H";
+    HEADER+=prevLABEL;
+    HEADER+=" ";
+    HEADER+=LOCCTR;
+    HEADER+=PROG_LEN;
+    writeline(HEADER,"","",&fout);
+
+    string TEXT = "T";
+    TEXT+=LOCCTR;
+    TEXT+="  ";
+
+    string OPERAND_ADDR;
+
+    string OBJECT_CODE;
+
     while(OPCODE != "END"){
         if(ifcomment == false){
-
+            if(OPTAB.find(OPCODE)!=OPTAB.end()){
+                if(OPERAND!=""){
+                    if(SYMTAB.find(OPERAND)!=SYMTAB.end()){
+                        OPERAND_ADDR = SYMTAB[OPERAND];
+                        if(OPCODE == "LDCH"|| OPCODE=="STCH" ){
+                            OPERAND_ADDR = intToHex((8*16*16*16) + hexToInt(OPERAND_ADDR));
+                        }
+                    }else{
+                        OPERAND_ADDR = intToHex(0);
+                        cout<<"ERROR:UNDEFINED SYMBOL"<<endl;
+                    }
+                }else{
+                    OPERAND_ADDR = intToHex(0);
+                }
+                OBJECT_CODE = assembleObjectCode(OPERAND_ADDR,OPCODE);
+            }else if(OPCODE == "BYTE" || OPCODE == "WORD"){
+                if(OPCODE == "WORD"){
+                    OBJECT_CODE = intToHex(stringToInt(OPERAND));
+                }else{
+                    if(OPERAND[0]=='C'){
+                        OBJECT_CODE="";
+                        for(int i=2;i<OPERAND.length()-1;i++){
+                            OBJECT_CODE+=intToHexLen2(OPERAND[i]);
+                        }
+                    }else{
+                        OBJECT_CODE="";
+                        for(int i=2;i<OPERAND.length()-1;i++){
+                            OBJECT_CODE+=OPERAND[i];
+                        }
+                    }
+                }
+            }
+            if(OBJECT_CODE.length()+TEXT.length()>69){
+                string len = intToHexLen2((TEXT.length()-9)/2);
+                TEXT[7]=len[0];
+                TEXT[8]=len[1];
+                writeline(TEXT,"","",&fout);
+                TEXT="T";
+                TEXT+=LOCCTR;
+                TEXT+="  ";
+            }
+            TEXT+=OBJECT_CODE;
+            incrLOCCTR(&LOCCTR,OPCODE,OPERAND);
         }
         ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
     }
 
+    string len = intToHexLen2((TEXT.length()-9)/2);
+    TEXT[7]=len[0];
+    TEXT[8]=len[1];
+    writeline(TEXT,"","",&fout);
+
+    string endRecord="E";
+    endRecord+=START_ADDR;
+    writeline(endRecord,"","",&fout);
     fout.close();
     fin.close();
 }
