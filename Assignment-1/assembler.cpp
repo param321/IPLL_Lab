@@ -4,6 +4,8 @@ using namespace std;
 
 string PROG_LEN;
 
+const int TEXT_RECORD_LEN = 69;
+
 const unordered_map<string,string> OPTAB = {
     {"LDA","00"},
     {"LDX","04"},
@@ -32,54 +34,69 @@ const unordered_map<string,string> OPTAB = {
 
 unordered_map <string,string> SYMTAB;
 
-bool readline(string* LABEL,string* OPCODE,string* OPERAND,ifstream *fin){
+string LABEL;
+string OPCODE;
+string OPERAND;
+
+bool readline(ifstream *fin){
     string line;
     getline(*fin,line);
-    *LABEL = "";
-    *OPCODE = "";
-    *OPERAND = "";
+    LABEL = "";
+    OPCODE = "";
+    OPERAND = "";
     int pointer = 0;
+
     if(line[0]=='.'){
-        *LABEL = line;
+        LABEL = line;
         return true;
     }
+
     if(line[0]!=' '){
         for(pointer = 0;pointer < line.length();pointer++){
             if(line[pointer]==' '){
                 break;
             }else{
-                *LABEL += line[pointer];
+                LABEL += line[pointer];
             }
         }
     }
+
     while(line[pointer]==' '){
         pointer++;
     }
+
     for(;pointer < line.length();pointer++){
         if(line[pointer]==' '){
             break;
         }else{
-            *OPCODE += line[pointer];
+            OPCODE += line[pointer];
         }
     }
+
     while(line[pointer]==' '){
         pointer++;
     }
+
     for(;pointer < line.length();pointer++){
         if(line[pointer]==' '||line[pointer]==','){
             break;
         }else{
-            *OPERAND += line[pointer];
+            OPERAND += line[pointer];
         }
     }
+
     return false;
 }
 
-void writeline(string LABEL,string OPCODE,string OPERAND,ofstream* fout){
+void writeline(ofstream* fout){
     *fout<<LABEL<<"  "<<OPCODE<<"  "<<OPERAND<<endl;
 }
 
-char till15toHex(int n){
+void writeObjectLine(string line,ofstream* fout){
+    *fout<<line<<endl;
+}
+
+char intToHexSingleDigit(int n){
     char c;
     if(n<=9){
         c = '0'+n;
@@ -89,7 +106,7 @@ char till15toHex(int n){
     return c;
 }
 
-int till15toInt(char c){
+int hexToIntSingleChar(char c){
     int n;
     if((c<='9')&&(c>='0')){
         n = c-'0';
@@ -102,7 +119,7 @@ int till15toInt(char c){
 string intToHex(int n){
     string s = "";
     while(n!=0){
-        s = till15toHex(n%16) + s;
+        s = intToHexSingleDigit(n%16) + s;
         n = n / 16;
     }
     while(s.length()<6){
@@ -114,7 +131,7 @@ string intToHex(int n){
 string intToHexLen2(int n){
     string s = "";
     while(n!=0){
-        s = till15toHex(n%16) + s;
+        s = intToHexSingleDigit(n%16) + s;
         n = n / 16;
     }
     while(s.length()<2){
@@ -128,7 +145,7 @@ int hexToInt(string s){
     int j=1;
     int ans=0;
     for(int i=0;i<s.length();i++){
-        ans+= (till15toInt(s[i])*j);
+        ans+= (hexToIntSingleChar(s[i])*j);
         j=j*16;
     }
     return ans;
@@ -155,7 +172,7 @@ int bytelength(string s){
     return len;
 }
 
-void incrLOCCTR(string* LOCCTR,string OPCODE,string OPERAND){
+void incrLOCCTR(string* LOCCTR){
     if(OPTAB.find(OPCODE)!=OPTAB.end()){
         *LOCCTR = intToHex(3 + hexToInt(*LOCCTR));
     }else if(OPCODE == "WORD"){
@@ -171,13 +188,13 @@ void incrLOCCTR(string* LOCCTR,string OPCODE,string OPERAND){
     }
 }
 
-string assembleObjectCode(string OPERAND_ADDR,string OPCODE){
+string assembleObjectCode(string OPERAND_ADDR){
     string ObjectCode = OPTAB.at(OPCODE);
     ObjectCode += OPERAND_ADDR.substr(2);
     return ObjectCode;
 }
 
-void pass1(string LABEL,string OPCODE,string OPERAND){
+void pass1(){
 
     ifstream fin; 
     fin.open("source.txt");
@@ -188,16 +205,17 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
     bool ifcomment = false;
     string LOCCTR ;
     string START_ADDR = intToHex(0);
-    ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    ifcomment = readline(&fin);
     
     if(OPCODE == "START"){
         START_ADDR = (intToHex(hexToInt(OPERAND)));
         LOCCTR = (intToHex(hexToInt(OPERAND)));
-        writeline(LABEL,OPCODE,OPERAND,&fout);
-        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+        writeline(&fout);
+        ifcomment = readline(&fin);
     }else{
         LOCCTR = intToHex(0);
     }
+
     while(OPCODE != "END"){
         if(ifcomment == false){
             if(LABEL!=""){
@@ -207,19 +225,21 @@ void pass1(string LABEL,string OPCODE,string OPERAND){
                     SYMTAB[LABEL]=LOCCTR;
                 }
             }
-            incrLOCCTR(&LOCCTR,OPCODE,OPERAND);
+            incrLOCCTR(&LOCCTR);
         }
-        writeline(LABEL,OPCODE,OPERAND,&fout);
-        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+        writeline(&fout);
+        ifcomment = readline(&fin);
     }
 
-    writeline(LABEL,OPCODE,OPERAND,&fout);
+    writeline(&fout);
+
     PROG_LEN = intToHex(hexToInt(LOCCTR)-hexToInt(START_ADDR));
+
     fout.close();
     fin.close();
 }
 
-void pass2(string LABEL,string OPCODE,string OPERAND){
+void pass2(){
 
     ifstream fin; 
     fin.open("intermediate.txt");
@@ -232,7 +252,7 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
     string LOCCTR = intToHex(0);
     string START_ADDR = intToHex(0);
 
-    ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+    ifcomment = readline(&fin);
 
     string prevLABEL = LABEL;
     string prevOPERAND = OPERAND;
@@ -240,22 +260,23 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
     if(OPCODE == "START"){
         START_ADDR = (intToHex(hexToInt(OPERAND)));
         LOCCTR = (intToHex(hexToInt(OPERAND)));
-        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+        ifcomment = readline(&fin);
     }
 
     string HEADER = "H";
     HEADER+=prevLABEL;
-    HEADER+=" ";
+    for(int i=0;i<6-prevLABEL.length();i++){
+        HEADER+=" ";
+    }
     HEADER+=LOCCTR;
     HEADER+=PROG_LEN;
-    writeline(HEADER,"","",&fout);
+    writeObjectLine(HEADER,&fout);
 
     string TEXT = "T";
     TEXT+=LOCCTR;
     TEXT+="  ";
 
     string OPERAND_ADDR;
-
     string OBJECT_CODE;
 
     while(OPCODE != "END"){
@@ -265,7 +286,7 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
                     if(SYMTAB.find(OPERAND)!=SYMTAB.end()){
                         OPERAND_ADDR = SYMTAB[OPERAND];
                         if(OPCODE == "LDCH"|| OPCODE=="STCH" ){
-                            OPERAND_ADDR = intToHex((8*16*16*16) + hexToInt(OPERAND_ADDR));
+                            OPERAND_ADDR = intToHex(hexToInt("008000") + hexToInt(OPERAND_ADDR));
                         }
                     }else{
                         OPERAND_ADDR = intToHex(0);
@@ -274,7 +295,7 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
                 }else{
                     OPERAND_ADDR = intToHex(0);
                 }
-                OBJECT_CODE = assembleObjectCode(OPERAND_ADDR,OPCODE);
+                OBJECT_CODE = assembleObjectCode(OPERAND_ADDR);
             }else if(OPCODE == "BYTE" || OPCODE == "WORD"){
                 if(OPCODE == "WORD"){
                     OBJECT_CODE = intToHex(stringToInt(OPERAND));
@@ -292,36 +313,47 @@ void pass2(string LABEL,string OPCODE,string OPERAND){
                     }
                 }
             }
-            if(OBJECT_CODE.length()+TEXT.length()>69){
+
+            if(OBJECT_CODE.length()+TEXT.length()>TEXT_RECORD_LEN||((OPCODE=="RESW"||OPCODE=="RESB")&&TEXT.length()>9)){
                 string len = intToHexLen2((TEXT.length()-9)/2);
                 TEXT[7]=len[0];
                 TEXT[8]=len[1];
-                writeline(TEXT,"","",&fout);
+                writeObjectLine(TEXT,&fout);
                 TEXT="T";
                 TEXT+=LOCCTR;
                 TEXT+="  ";
             }
-            TEXT+=OBJECT_CODE;
-            incrLOCCTR(&LOCCTR,OPCODE,OPERAND);
+
+            if(TEXT.length()==9){
+                TEXT="T";
+                TEXT+=LOCCTR;
+                TEXT+="  ";
+            }
+
+            if(OPCODE!="RESW"&&OPCODE!="RESB"){
+                TEXT+=OBJECT_CODE;
+            }
+
+            incrLOCCTR(&LOCCTR);
         }
-        ifcomment = readline(&LABEL,&OPCODE,&OPERAND,&fin);
+        ifcomment = readline(&fin);
     }
 
     string len = intToHexLen2((TEXT.length()-9)/2);
     TEXT[7]=len[0];
     TEXT[8]=len[1];
-    writeline(TEXT,"","",&fout);
+    writeObjectLine(TEXT,&fout);
 
     string endRecord="E";
     endRecord+=START_ADDR;
-    writeline(endRecord,"","",&fout);
+    writeObjectLine(endRecord,&fout);
+
     fout.close();
     fin.close();
 }
 
 int main(){
-    string LABEL, OPCODE, OPERAND;
-    pass1(LABEL,OPCODE,OPERAND);
-    pass2(LABEL,OPCODE,OPERAND);
+    pass1();
+    pass2();
     return 0;
 }
