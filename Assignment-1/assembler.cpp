@@ -38,7 +38,7 @@ string LABEL;
 string OPCODE;
 string OPERAND;
 
-bool readline(ifstream *fin){
+bool readInputLine(ifstream *fin){
     string line;
     getline(*fin,line);
     LABEL = "";
@@ -88,8 +88,70 @@ bool readline(ifstream *fin){
     return false;
 }
 
-void writeline(ofstream* fout){
-    *fout<<LABEL<<"  "<<OPCODE<<"  "<<OPERAND<<endl;
+bool readIntermediateLine(string* LOCCTR,ifstream *fin){
+    string line;
+    getline(*fin,line);
+
+    *LOCCTR="";
+    LABEL = "";
+    OPCODE = "";
+    OPERAND = "";
+    int pointer = 0;
+
+    if(line[0]=='.'){
+        LABEL = line;
+        return true;
+    }
+
+    if(line[0]!=' '){
+        for(pointer = 0;pointer < line.length();pointer++){
+            if(line[pointer]==' '){
+                break;
+            }else{
+                *LOCCTR += line[pointer];
+            }
+        }
+    }
+
+    pointer+=2;
+
+    for(;pointer < line.length();pointer++){
+        if(line[pointer]==' '){
+            break;
+        }else{
+            LABEL += line[pointer];
+        }
+    }
+
+    pointer+=2;
+
+    for(;pointer < line.length();pointer++){
+        if(line[pointer]==' '){
+            break;
+        }else{
+            OPCODE += line[pointer];
+        }
+    }
+
+    pointer+=2;
+
+    for(;pointer < line.length();pointer++){
+        if(line[pointer]==' '||line[pointer]==','){
+            break;
+        }else{
+            OPERAND += line[pointer];
+        }
+    }
+
+    return false;
+}
+
+void writeIntermediateLine(string LOCCTR, ofstream* fout){
+    if(OPCODE!=""){
+        *fout<<LOCCTR<<"  "<<LABEL<<"  "<<OPCODE<<"  "<<OPERAND<<endl;
+    }else{
+        *fout<<LOCCTR<<endl;
+    }
 }
 
 void writeObjectLine(string line,ofstream* fout){
@@ -203,15 +265,15 @@ void pass1(){
     fout.open("intermediate.txt");
 
     bool ifcomment = false;
-    string LOCCTR ;
+    string LOCCTR =intToHex(0);
     string START_ADDR = intToHex(0);
-    ifcomment = readline(&fin);
+    ifcomment = readInputLine(&fin);
     
     if(OPCODE == "START"){
         START_ADDR = (intToHex(hexToInt(OPERAND)));
         LOCCTR = (intToHex(hexToInt(OPERAND)));
-        writeline(&fout);
-        ifcomment = readline(&fin);
+        writeIntermediateLine(LOCCTR,&fout);
+        ifcomment = readInputLine(&fin);
     }else{
         LOCCTR = intToHex(0);
     }
@@ -225,13 +287,17 @@ void pass1(){
                     SYMTAB[LABEL]=LOCCTR;
                 }
             }
+            writeIntermediateLine(LOCCTR,&fout);
             incrLOCCTR(&LOCCTR);
+        }else{
+            string comment = LABEL;
+            LABEL="";
+            writeIntermediateLine(comment,&fout);
         }
-        writeline(&fout);
-        ifcomment = readline(&fin);
+        ifcomment = readInputLine(&fin);
     }
 
-    writeline(&fout);
+    writeIntermediateLine(LOCCTR,&fout);
 
     PROG_LEN = intToHex(hexToInt(LOCCTR)-hexToInt(START_ADDR));
 
@@ -252,15 +318,14 @@ void pass2(){
     string LOCCTR = intToHex(0);
     string START_ADDR = intToHex(0);
 
-    ifcomment = readline(&fin);
+    ifcomment = readIntermediateLine(&LOCCTR,&fin);
 
     string prevLABEL = LABEL;
     string prevOPERAND = OPERAND;
 
     if(OPCODE == "START"){
         START_ADDR = (intToHex(hexToInt(OPERAND)));
-        LOCCTR = (intToHex(hexToInt(OPERAND)));
-        ifcomment = readline(&fin);
+        ifcomment = readIntermediateLine(&LOCCTR,&fin);
     }
 
     string HEADER = "H";
@@ -333,10 +398,8 @@ void pass2(){
             if(OPCODE!="RESW"&&OPCODE!="RESB"){
                 TEXT+=OBJECT_CODE;
             }
-
-            incrLOCCTR(&LOCCTR);
         }
-        ifcomment = readline(&fin);
+        ifcomment = readIntermediateLine(&LOCCTR,&fin);
     }
 
     string len = intToHexLen2((TEXT.length()-9)/2);
