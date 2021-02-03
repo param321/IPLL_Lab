@@ -9,13 +9,13 @@ Command to execute : ./a.out
 
 using namespace std;
 
-//program leangth in hexadeciaml
+//program length in hexadeciaml
 string PROG_LEN;
 
 //maximum length of text record
 const int TEXT_RECORD_LEN = 69;
 
-//OPTAB
+//Operation Code Table
 const unordered_map<string, string> OPTAB = {
     {"LDA", "00"},
     {"LDX", "04"},
@@ -41,7 +41,7 @@ const unordered_map<string, string> OPTAB = {
     {"RD", "D8"},
     {"WD", "DC"}};
 
-//SYMTAB
+//Symbol Table
 unordered_map<string, string> SYMTAB;
 
 //LABEL, OPCODE, OPERAND
@@ -164,14 +164,17 @@ bool readInputLine(ifstream *fin)
     OPERAND = "";
     int pointer = 0;
 
+    //check that line is a comment or not
     if (line[0] == '.')
     {
         LABEL = line;
         return true;
     }
 
+    //if LABEL is empty or not
     if (line[0] != ' ')
     {
+        //fetch LABEL from the line
         for (pointer = 0; pointer < line.length(); pointer++)
         {
             if (line[pointer] == ' ')
@@ -190,6 +193,7 @@ bool readInputLine(ifstream *fin)
         pointer++;
     }
 
+    //fetch the opcode from the line
     for (; pointer < line.length(); pointer++)
     {
         if (line[pointer] == ' ')
@@ -207,6 +211,7 @@ bool readInputLine(ifstream *fin)
         pointer++;
     }
 
+    //fetch the operand from the line
     for (; pointer < line.length(); pointer++)
     {
         if (line[pointer] == ' ')
@@ -234,6 +239,7 @@ bool readIntermediateLine(string *LOCCTR, ifstream *fin)
     OPERAND = "";
     int pointer = 0;
 
+    //check if the line is a comment or not
     if (line[0] == '.')
     {
         LABEL = line;
