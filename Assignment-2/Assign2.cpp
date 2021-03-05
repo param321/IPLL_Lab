@@ -15,7 +15,7 @@ const int MAXW = 10;
 const int ILEN = 1 ;// Instruction length
 const int WLEN = 1 ;// Word length
 
-const char *SYMTAB = "symbolTable.txt";
+const char *symtabFile = "symbolTable.txt";
 
 //List of Registers
 unordered_map <string, string> register_list = {
@@ -37,8 +37,10 @@ struct op_code{
     string op_addr;
     int format;
 };
+
 //Operation Code Table
 unordered_map <string, op_code> OPTAB;
+
 void load_OPTAB(){
     OPTAB["LDA"] = {"00",3};
     OPTAB["LDX"] = {"04",3};
@@ -82,16 +84,15 @@ op_code* search_optab(char *OPCODE){
 struct symbol_info{
     string addr;
 };
+
 class symtab{
+public:
     unordered_map<string, symbol_info> table;
     set<string> extref;
     set<string> extdef;
     int length;
 
-public:
-    symtab(){
-
-    }
+    symtab(){}
 
     symbol_info* search_symtab(char *LABEL){
         string label = LABEL;
@@ -102,359 +103,33 @@ public:
         return NULL;
     }
     
-    int insert_symtab(const char *LABEL, int LOCCTR){
-        FILE *filesymtab = fopen(SYMTAB, "a");
+    void insert_symtab(const char *LABEL, int LOCCTR){
+        FILE *filesymtab = fopen(symtabFile, "a");
         string label = LABEL;
         char addr[MAXW];
         sprintf(addr, "%0X", LOCCTR);
         table[label] = {addr};
         fprintf(filesymtab, "%s\t%s\n", addr, LABEL);
         fclose(filesymtab);
-	    return 1;
     }
     
-    int insert_extdef(char *LABEL){
+    void insert_extdef(char *LABEL){
         extdef.insert((string)LABEL);
-        return 1;
     }
 
-    int insert_extref(char *LABEL){
+    void insert_extref(char *LABEL){
 	    extref.insert((string)LABEL);
-	    return 1;
     }
 
-    int print_symtab(){
-        for (auto i = table.begin(); i != table.end(); i++){
-            cout << i->first << ' ' << i->second.addr << endl;
+    void print_symtab(){
+        for (auto i :table){
+            cout << i.first <<" "<< i.second.addr << endl;
         }
-        return 1;
-    }
-
-    void set_length(int length){
-	    this->length = length;
-    }
-
-    int get_length(){
-	    return this->length;
     }
 };
 
 map<string, symtab *> symtab_list;
 set<string> literal_pool;
-
-//LABEL, OPCODE, OPERAND
-// string LABEL;
-// string OPCODE;
-// string OPERAND;
-
-//converts integer from 0 to 15 to single character hexadecimal
-char intToHexSingleDigit(int n)
-{
-    char c;
-    if (n <= 9)
-    {
-        c = '0' + n;
-    }
-    else
-    {
-        c = 'A' + (n - 10);
-    }
-    return c;
-}
-
-//converts single character hexadecimal to integer
-int hexToIntSingleChar(char c)
-{
-    int n;
-    if ((c <= '9') && (c >= '0'))
-    {
-        n = c - '0';
-    }
-    else
-    {
-        n = c - 'A' + 10;
-    }
-    return n;
-}
-
-//converts integer value to hexadecimal string of length 6
-string intToHex(int n)
-{
-    string s = "";
-    while (n != 0)
-    {
-        s = intToHexSingleDigit(n % 16) + s;
-        n = n / 16;
-    }
-    while (s.length() < 6)
-    {
-        s = '0' + s;
-    }
-    return s;
-}
-
-//converts integer value to hexadecimal string of length 2
-string intToHexLen2(int n)
-{
-    string s = "";
-    while (n != 0)
-    {
-        s = intToHexSingleDigit(n % 16) + s;
-        n = n / 16;
-    }
-    while (s.length() < 2)
-    {
-        s = '0' + s;
-    }
-    return s;
-}
-
-//converts hexadecimal string to integer value
-int hexToInt(string s)
-{
-    reverse(s.begin(), s.end());
-    int j = 1;
-    int ans = 0;
-    for (int i = 0; i < s.length(); i++)
-    {
-        ans += (hexToIntSingleChar(s[i]) * j);
-        j = j * 16;
-    }
-    return ans;
-}
-
-//converts string to integer
-int stringToInt(string s)
-{
-    reverse(s.begin(), s.end());
-    int j = 1;
-    int ans = 0;
-    for (int i = 0; i < s.length(); i++)
-    {
-        ans += ((s[i] - '0') * j);
-        j = j * 10;
-    }
-    return ans;
-}
-
-//length of address occupied by characters or hexadeciaml constants when OPCODE == BYTE
-int bytelength(string s)
-{
-    int len = 0;
-    if (s[0] == 'X')
-    {
-        len = (s.length() - 3) / 2;
-    }
-    else if (s[0] == 'C')
-    {
-        len = s.length() - 3;
-    }
-    return len;
-}
-
-//will read line from input file and return true if line is a comment otherwise false if line is not a comment
-// bool readInputLine(ifstream *fin)
-// {
-//     string line;
-//     getline(*fin, line);
-//     LABEL = "";
-//     OPCODE = "";
-//     OPERAND = "";
-//     int pointer = 0;
-
-//     //check that line is a comment or not
-//     if (line[0] == '.')
-//     {
-//         LABEL = line;
-//         return true;
-//     }
-
-//     //if LABEL is empty or not
-//     if (line[0] != ' ')
-//     {
-//         //fetch LABEL from the line
-//         for (pointer = 0; pointer < line.length(); pointer++)
-//         {
-//             if (line[pointer] == ' ')
-//             {
-//                 break;
-//             }
-//             else
-//             {
-//                 LABEL += line[pointer];
-//             }
-//         }
-//     }
-
-//     while (line[pointer] == ' ')
-//     {
-//         pointer++;
-//     }
-
-//     //fetch the opcode from the line
-//     for (; pointer < line.length(); pointer++)
-//     {
-//         if (line[pointer] == ' ')
-//         {
-//             break;
-//         }
-//         else
-//         {
-//             OPCODE += line[pointer];
-//         }
-//     }
-
-//     while (line[pointer] == ' ')
-//     {
-//         pointer++;
-//     }
-
-//     //fetch the operand from the line
-//     for (; pointer < line.length(); pointer++)
-//     {
-//         if (line[pointer] == ' ')
-//         {
-//             break;
-//         }
-//         else
-//         {
-//             OPERAND += line[pointer];
-//         }
-//     }
-
-//     return false;
-// }
-
-//will read line from intermediate file and return true if line is a comment otherwise false if line is not a comment
-// bool readIntermediateLine(string *LOCCTR, ifstream *fin)
-// {
-//     string line;
-//     getline(*fin, line);
-
-//     *LOCCTR = "";
-//     LABEL = "";
-//     OPCODE = "";
-//     OPERAND = "";
-//     int pointer = 0;
-
-//     //check if the line is a comment or not
-//     if (line[0] == '.')
-//     {
-//         LABEL = line;
-//         return true;
-//     }
-
-//     if (line[0] != ' ')
-//     {
-//         for (pointer = 0; pointer < line.length(); pointer++)
-//         {
-//             if (line[pointer] == ' ')
-//             {
-//                 break;
-//             }
-//             else
-//             {
-//                 *LOCCTR += line[pointer];
-//             }
-//         }
-//     }
-//     else
-//     {
-//         pointer += 4;
-//     }
-
-//     *LOCCTR = intToHex(hexToInt(*LOCCTR));
-
-//     pointer += 2;
-
-//     for (; pointer < line.length(); pointer++)
-//     {
-//         if (line[pointer] == ' ')
-//         {
-//             break;
-//         }
-//         else
-//         {
-//             LABEL += line[pointer];
-//         }
-//     }
-
-//     pointer += (15 - (LABEL.length()));
-
-//     for (; pointer < line.length(); pointer++)
-//     {
-//         if (line[pointer] == ' ')
-//         {
-//             break;
-//         }
-//         else
-//         {
-//             OPCODE += line[pointer];
-//         }
-//     }
-
-//     pointer += (8 - (OPCODE.length()));
-
-//     for (; pointer < line.length(); pointer++)
-//     {
-//         if (line[pointer] == ' ' || line[pointer] == ',')
-//         {
-//             break;
-//         }
-//         else
-//         {
-//             OPERAND += line[pointer];
-//         }
-//     }
-
-//     return false;
-// }
-
-//writes a line on Intermediate file
-// void writeIntermediateLine(string LOCCTR, ofstream *fout)
-// {
-//     if (OPCODE != "")
-//     {
-//         if (LOCCTR != "")
-//         {
-//             *fout << LOCCTR.substr(2) << "  " << LABEL;
-//             for (int i = 0; i < 15 - LABEL.length(); i++)
-//             {
-//                 *fout << " ";
-//             }
-//             *fout << OPCODE;
-//             for (int i = 0; i < 8 - OPCODE.length(); i++)
-//             {
-//                 *fout << " ";
-//             }
-//             *fout << OPERAND << endl;
-//         }
-//         else
-//         {
-//             *fout << "      " << LABEL;
-//             for (int i = 0; i < 15 - LABEL.length(); i++)
-//             {
-//                 *fout << " ";
-//             }
-//             *fout << OPCODE;
-//             for (int i = 0; i < 8 - OPCODE.length(); i++)
-//             {
-//                 *fout << " ";
-//             }
-//             *fout << OPERAND << endl;
-//         }
-//     }
-//     else
-//     {
-//         *fout << LOCCTR << endl;
-//     }
-// }
-
-// //writes a line on object file
-// void writeObjectLine(string line, ofstream *fout)
-// {
-//     *fout << line << endl;
-// }
 
 struct modrec {
     int addr;
@@ -499,12 +174,13 @@ int print_literals(int LOCCTR, FILE *outputFile, symtab *base)
 }
 
 FILE *progamFile, *intmediateFile, *objectFile, *listFile;
+
 void pass1(){
 
     fseek(progamFile, 0, SEEK_SET);
 
     //clear symbol table
-    FILE *st = fopen(SYMTAB, "w");
+    FILE *st = fopen(symtabFile, "w");
     fclose(st);
 
     char *line = NULL, temp[MAXS];
@@ -519,21 +195,18 @@ void pass1(){
     // read first line
     getline(&line, &len, progamFile);
     strcpy(temp, line);
-    if (line[0] == ' ')
-    {
+
+    if(line[0] == ' '){
         words = break_line(temp, 1, args);
         LABEL = NULL;
         OPCODE = args[1];
-    }
-    else
-    {
+    }else{
         words = break_line(temp, 0, args);
         LABEL = args[0];
         OPCODE = args[1];
     }
 
-    if (strcmp(args[1], "START") == 0)
-    {
+    if(strcmp(args[1], "START") == 0){
         OPERAND = args[2];
         STARTADDR = strtol(OPERAND, NULL, 16);
         strcpy(PROGNAME, LABEL);
@@ -545,155 +218,114 @@ void pass1(){
         // read next input line
         getline(&line, &len, progamFile);
         strcpy(temp, line);
-        if (line[0] == ' ')
-        {
+        if (line[0] == ' '){
             words = break_line(temp, 1, args);
             LABEL = NULL;
             OPCODE = args[1];
-        }
-        else
-        {
+        }else{
             words = break_line(temp, 0, args);
             LABEL = args[0];
             OPCODE = args[1];
         }
-    }
-    else
-    {
+    }else{
         LOCCTR = 0;
     }
 
     symtab *base = new symtab;
     symtab_list[(string)PROGNAME] = base;
-    while (strcmp(OPCODE, "END") != 0)
-    {
-        if (line[0] != '.') // check if not a comment
-        {
-            if (strcmp(OPCODE, "CSECT") == 0)
-            {
+    while (strcmp(OPCODE, "END") != 0){
+        if (line[0] != '.'){ // check if not a comment
+            if (strcmp(OPCODE, "CSECT") == 0){
                 // DO THIS
                 LOCCTR = print_literals(LOCCTR, intmediateFile, base);
-                base->set_length(LOCCTR);
+                base->length = LOCCTR;
                 base = new symtab;
                 symtab_list[(string)LABEL] = base;
                 LOCCTR = 0;
-            }
-            else if (LABEL) // check if symbol in label
-            {
-                if (base->search_symtab(LABEL))
-                {
+            }else if (LABEL){ // check if symbol in label
+                if (base->search_symtab(LABEL)){
                     printf("Error: Duplicate Symbol. %s\n", LABEL);
-                    ERROR_FLAG = 1;
-                }
-                else
-                {
+                    exit(0);
+                }else{
                     base->insert_symtab(LABEL, LOCCTR);
                 }
             }
 
             bool extended = false;
-            if (OPCODE[0] == '+')
-            {
+
+            if (OPCODE[0] == '+'){
                 extended = true;
                 OPCODE++;
             }
-            if (words > 2)
-            {
+
+            if (words > 2){
                 OPERAND = args[2];
-                if (OPERAND[0] == '=')
-                {
+                if (OPERAND[0] == '='){
                     literal_pool.insert((string)OPERAND);
                 }
             }
 
             // write line to intermediate file
-            if (strcmp(OPCODE, "EXTDEF") == 0 || strcmp(OPCODE, "EXTREF") == 0 || strcmp(OPCODE, "LTORG") == 0)
+            if (strcmp(OPCODE, "EXTDEF") == 0 || strcmp(OPCODE, "EXTREF") == 0 || strcmp(OPCODE, "LTORG") == 0){
                 fprintf(intmediateFile, "    \t%s", line);
-            else
+            }else{
                 fprintf(intmediateFile, "%04X\t%s", LOCCTR, line);
+            }
 
-            if (op_code *info = search_optab(OPCODE))
-            {
-                if (extended)
-                {
+            if (op_code *info = search_optab(OPCODE)){
+                if (extended){
                     LOCCTR = LOCCTR + 4 * ILEN;
-                }
-                else
+                }else{
                     LOCCTR = LOCCTR + info->format * ILEN;
-            }
-            else if (strcmp(OPCODE, "WORD") == 0)
-            {
+                }
+            }else if (strcmp(OPCODE, "WORD") == 0){
                 LOCCTR = LOCCTR + 3;
-            }
-            else if (strcmp(OPCODE, "RESW") == 0)
-            {
-                LOCCTR = LOCCTR + 3 * strtol(OPERAND, NULL, 10);
-            }
-            else if (strcmp(OPCODE, "RESB") == 0)
-            {
+            }else if (strcmp(OPCODE, "RESW") == 0){
+                LOCCTR = LOCCTR + (3 * strtol(OPERAND, NULL, 10));
+            }else if (strcmp(OPCODE, "RESB") == 0){
                 LOCCTR = LOCCTR + strtol(OPERAND, NULL, 10);
-            }
-            else if (strcmp(OPCODE, "BYTE") == 0)
-            {
-                if (OPERAND[0] == 'C')
-                    LOCCTR = LOCCTR + strlen(OPERAND) - 3;
-                else if (OPERAND[0] == 'X')
-                    LOCCTR = LOCCTR + (strlen(OPERAND) - 3 + 1) / 2;
-            }
-            else if (strcmp(OPCODE, "EXTREF") == 0)
-            {
+            }else if (strcmp(OPCODE, "BYTE") == 0){
+                if (OPERAND[0] == 'C'){
+                    LOCCTR = LOCCTR + (strlen(OPERAND)-3);
+                }else if (OPERAND[0] == 'X'){
+                    LOCCTR = LOCCTR + ((strlen(OPERAND)-3+1)/2);
+                }
+            }else if (strcmp(OPCODE, "EXTREF") == 0){
                 // DO THIS
                 int size = break_line(OPERAND, 0, args, ",");
-                for (int i = 0; i < size; i++)
-                {
+                for (int i = 0; i < size; i++){
                     base->insert_extref(args[i]);
                 }
-            }
-            else if (strcmp(OPCODE, "EXTDEF") == 0)
-            {
+            }else if (strcmp(OPCODE, "EXTDEF") == 0){
                 // DO THIS
                 OPERAND = args[2];
                 int size = break_line(OPERAND, 0, args, ",");
-                for (int i = 0; i < size; i++)
-                {
+                for (int i = 0; i < size; i++){
                     base->insert_extdef(args[i]);
                 }
-            }
-            else if (strcmp(OPCODE, "LTORG") == 0)
-            {
+            }else if (strcmp(OPCODE, "LTORG") == 0){
                 // DO THIS
                 LOCCTR = print_literals(LOCCTR, intmediateFile, base);
-            }
-            else if (strcmp(OPCODE, "EQU") == 0)
-            {
+            }else if (strcmp(OPCODE, "EQU") == 0){
                 // DO THIS
-            }
-            else if (strcmp(OPCODE, "CSECT") == 0)
-            {
+            }else if (strcmp(OPCODE, "CSECT") == 0){
                 // DO THIS
-            }
-            else
-            {
+            }else{
                 printf("Error: Invalid operation code. \n");
-                ERROR_FLAG = 1;
+                exit(0);
             }
-        }
-        else
-        {
+        }else{
             fprintf(intmediateFile, "    \t%s", line);
         }
 
         // read next input line
         getline(&line, &len, progamFile);
         strcpy(temp, line);
-        if (line[0] == ' ')
-        {
+        if (line[0] == ' '){
             words = break_line(temp, 1, args);
             LABEL = NULL;
             OPCODE = args[1];
-        }
-        else
-        {
+        }else{
             words = break_line(temp, 0, args);
             LABEL = args[0];
             OPCODE = args[1];
@@ -703,12 +335,12 @@ void pass1(){
     fprintf(intmediateFile, "    \t%s\n", line);
 
     LOCCTR = print_literals(LOCCTR, intmediateFile, base);
-    base->set_length(LOCCTR);
+    base->length = LOCCTR;
 
     // store program length
     PROGLEN = LOCCTR - STARTADDR;
 
-    printf("PASS ONE COMPLETED.\n");
+    cout<<"PASS 1 DONE"<<endl;
 }
 
 int main(){
