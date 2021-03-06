@@ -372,6 +372,23 @@ void pass1(){
     cout<<"PASS 1 DONE"<<endl;
 }
 
+char* stringCopy(char* destination, const char* source){
+    if (destination == NULL)
+        return NULL;
+ 
+    char *ptr = destination;
+ 
+    while (*source != '\0'){
+        *destination = *source;
+        destination++;
+        source++;
+    }
+ 
+    *destination = '\0';
+ 
+    return ptr;
+}
+
 void pass2(){
 
     fseek(intermediateFile, 0, SEEK_SET);
@@ -388,13 +405,14 @@ void pass2(){
 
     fscanf(intermediateFile, "%[^\t]s", addr);
     getline(&line, &len, intermediateFile);
-    strcpy(temp, line);
 
     if (line[0] == ' '){
+        stringCopy(temp, line);
         words = readLine(temp, 1, args," ");
         LABEL = "";
         OPCODE = args[1];
     }else{
+        stringCopy(temp, line);
         words = readLine(temp, 0, args," ");
         LABEL = args[0];
         OPCODE = args[1];
@@ -408,7 +426,7 @@ void pass2(){
 
         fscanf(intermediateFile, "%[^\t]s", addr);
         getline(&line, &len, intermediateFile);
-        strcpy(temp, line);
+        stringCopy(temp, line);
         if (line[0] == ' '){
             words = readLine(temp, 1, args," ");
             LABEL = "";
@@ -424,20 +442,20 @@ void pass2(){
 
     fprintf(objectFile, "H%-6s%06X%06X\n", PROGNAME.c_str(), STARTADDR, base->length);
 
-    char record[MAXS] = "";
-    char firstaddr[MAXS];
+    char firstaddr[MAXS] = "";
     sprintf(firstaddr, "%0X", STARTADDR);
+    char record[MAXS] = "";
 
-    while((OPCODE!="END") || true){
+    while(true){
         char objcode[MAXS];
-        strcpy(objcode, "");
+        stringCopy(objcode, "");
         if (line[1] != '.'){ 
             if (OPCODE=="CSECT"){
                 base = symtab_list[LABEL];
 
                 if (strlen(record) > 0){
                     fprintf(objectFile, "T%06X%02X%s\n", hexToInt(firstaddr),(int)strlen(record) / 2, record);
-                    strcpy(record, "");
+                    stringCopy(record, "");
                 }
 
                 while (!modification_records.empty()){
@@ -489,10 +507,9 @@ void pass2(){
                         strcat(objcode, "0");
                     }
                 }else if (info->format == 3 && !extended){
-                    int len = OPERAND.length();
-                    if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
+                    if (len > 1 && OPERAND[OPERAND.length() - 1] == 'X' && OPERAND[OPERAND.length() - 2] == ','){
                         bits['x'] = 1;
-                        OPERAND[len - 2] = '\0';
+                        OPERAND[OPERAND.length() - 2] = '\0';
                     }
 
                     if (words > 2){
@@ -528,15 +545,14 @@ void pass2(){
                     }
 
                     int num_objcode = hexToInt(info->op_addr.c_str()) * pow(16, 4);
-                    num_objcode |= ((bits['n'] << 17) + (bits['i'] << 16) + (bits['x'] << 15) + (bits['b'] << 14) + (bits['p'] << 13) + (bits['e'] << 12));
                     num_objcode |= operand_value;
+                    num_objcode |= ((bits['n'] << 17) + (bits['i'] << 16) + (bits['x'] << 15) + (bits['b'] << 14) + (bits['p'] << 13) + (bits['e'] << 12));
                     sprintf(objcode, "%06X", num_objcode);
                 }else if(info->format == 3 && extended){
                     if (words > 2){
-                        int len = OPERAND.length();
-                        if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
+                        if (OPERAND.length() > 1 && OPERAND[OPERAND.length() - 1] == 'X' && OPERAND[OPERAND.length() - 2] == ','){
                             bits['x'] = 1;
-                            OPERAND[len - 2] = '\0';
+                            OPERAND[OPERAND.length() - 2] = '\0';
                         }
 
                         if (OPERAND[0] == '#'){
@@ -635,7 +651,7 @@ void pass2(){
                     }
                 }
             }
-            
+
             if (LABEL[0] == '*'){
                 char* label = &LABEL[0];
                 readLine(label, 0, args, "=");
@@ -660,11 +676,11 @@ void pass2(){
                 if (strlen(record) > 0){
                     fprintf(objectFile, "T%06X%02X%s\n", hexToInt(firstaddr),(int)strlen(record) / 2, record);
                 }
-                strcpy(record, "");
+                stringCopy(record, "");
             }
 
             if (strlen(record) == 0){
-                strcpy(firstaddr, addr);
+                stringCopy(firstaddr, addr);
             }
             strcat(record, objcode);
 
@@ -679,7 +695,7 @@ void pass2(){
         }
 
         getline(&line, &len, intermediateFile);
-        strcpy(temp, line);
+        stringCopy(temp, line);
         words = readLine(temp, 0, args," ");
         LABEL = args[0];
         OPCODE = args[1];
