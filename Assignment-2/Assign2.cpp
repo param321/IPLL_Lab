@@ -376,18 +376,20 @@ void pass2(){
 
     fseek(intermediateFile, 0, SEEK_SET);
 
-    char *line = NULL, temp[MAXS], addr[MAXS];
-    size_t len = 0;
     char *args[MAXW];
     int words;
+
     OPCODE="";
     LABEL="";
     OPERAND="";
 
-    // read first line
+    char *line = NULL, temp[MAXS], addr[MAXS];
+    size_t len = 0;
+
     fscanf(intermediateFile, "%[^\t]s", addr);
     getline(&line, &len, intermediateFile);
     strcpy(temp, line);
+
     if (line[0] == ' '){
         words = readLine(temp, 1, args," ");
         LABEL = "";
@@ -402,10 +404,8 @@ void pass2(){
     queue<modrec> modification_records;
 
     if (OPCODE=="START"){
-        // write listing line
         fprintf(listFile, "%s%s", addr, line);
 
-        // read next input line
         fscanf(intermediateFile, "%[^\t]s", addr);
         getline(&line, &len, intermediateFile);
         strcpy(temp, line);
@@ -422,10 +422,8 @@ void pass2(){
 
     symtab *base = symtab_list[PROGNAME];
 
-    // write header record
     fprintf(objectFile, "H%-6s%06X%06X\n", PROGNAME.c_str(), STARTADDR, base->length);
 
-    // initialise first text record
     char record[MAXS] = "";
     char firstaddr[MAXS];
     sprintf(firstaddr, "%0X", STARTADDR);
@@ -433,28 +431,21 @@ void pass2(){
     while((OPCODE!="END") || true){
         char objcode[MAXS];
         strcpy(objcode, "");
-        if (line[1] != '.'){ // check line not a comment
-            cout << OPCODE << endl;
-            cout << strlen(record) << endl;
+        if (line[1] != '.'){ 
             if (OPCODE=="CSECT"){
-                // start a new control section
                 base = symtab_list[LABEL];
 
-                // write text record
                 if (strlen(record) > 0){
-                    fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
-                            (int)strlen(record) / 2, record);
+                    fprintf(objectFile, "T%06X%02X%s\n", hexToInt(firstaddr),(int)strlen(record) / 2, record);
                     strcpy(record, "");
                 }
 
-                // write modification records
                 while (!modification_records.empty()){
                     modrec rec = modification_records.front();
                     modification_records.pop();
                     fprintf(objectFile, "M%06X%02X%s%s\n", rec.addr, rec.length, rec.sign ? "+" : "-", rec.symbol.c_str());
                 }
 
-                // write end record
                 fprintf(objectFile, "E");
                 if (first_sect){
                     fprintf(objectFile, "E%06X", 0);
@@ -462,12 +453,10 @@ void pass2(){
                 }
                 fprintf(objectFile, "\n\n\n");
 
-                // write head record
                 char* label = &LABEL[0];
                 fprintf(objectFile, "H%-6s%06X%06X\n", label, 0, base->length);
             }
 
-            // set operand value if available
             if (words > 2){
                 OPERAND = args[2];
             }
@@ -479,14 +468,14 @@ void pass2(){
                 OPCODE=OPCODE.substr(1);
             }
 
-            // check if opcode found
             if (op_code *info = search_optab(OPCODE)){
-                int n_bit = 0;
-                int i_bit = 0;
-                int x_bit = 0;
-                int b_bit = 0;
-                int p_bit = 0;
-                int e_bit = 0;
+                map <char,int> bits;
+                bits['n']=0;
+                bits['i']=0;
+                bits['b']=0;
+                bits['e']=0;
+                bits['p']=0;
+                bits['x']=0;
                 int operand_value = 0;
 
                 if (info->format == 2){
@@ -502,74 +491,74 @@ void pass2(){
                 }else if (info->format == 3 && !extended){
                     int len = OPERAND.length();
                     if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
-                        x_bit = 1;
+                        bits['x'] = 1;
                         OPERAND[len - 2] = '\0';
                     }
 
                     if (words > 2){
                         if (OPERAND[0] == '#'){
-                            n_bit = 0;
+                            bits['n'] = 0;
                             OPERAND = OPERAND.substr(1);
                         }else{
-                            n_bit = 1;
+                            bits['n'] = 1;
                         }
 
                         if (OPERAND[0] == '@'){
-                            i_bit = 0;
+                            bits['i'] = 0;
                             OPERAND = OPERAND.substr(1);
                         }else{
-                            i_bit = 1;
+                            bits['i'] = 1;
                         }
 
                         if (!isdigit(OPERAND[0])){
                             string sym = base->search_symtab(OPERAND);
-                            operand_value = (int)strtol(sym.c_str(), NULL, 16) - (int)strtol(addr, NULL, 16) - 3;
+                            operand_value = (int)strtol(sym.c_str(), NULL, 16) - hexToInt(addr) - 3;
                             if (operand_value < 0){
                                 operand_value += 1 << 12;
                             }
-                            p_bit = 1;
+                            bits['p'] = 1;
                         }else{
-                            p_bit = 0;
+                            bits['p'] = 0;
                             char * operand = &OPERAND[0]; 
                             operand_value = (int)strtol(operand, NULL, 10);
                         }
                     }else{
-                        n_bit = 1;
-                        i_bit = 1;
+                        bits['n'] = 1;
+                        bits['i'] = 1;
                     }
 
-                    int num_objcode = (int)strtol(info->op_addr.c_str(), NULL, 16) * pow(16, 4);
-                    num_objcode |= ((n_bit << 17) + (i_bit << 16) + (x_bit << 15) + (b_bit << 14) + (p_bit << 13) + (e_bit << 12));
+                    int num_objcode = hexToInt(info->op_addr.c_str()) * pow(16, 4);
+                    num_objcode |= ((bits['n'] << 17) + (bits['i'] << 16) + (bits['x'] << 15) + (bits['b'] << 14) + (bits['p'] << 13) + (bits['e'] << 12));
                     num_objcode |= operand_value;
                     sprintf(objcode, "%06X", num_objcode);
                 }else if(info->format == 3 && extended){
                     if (words > 2){
                         int len = OPERAND.length();
                         if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
-                            x_bit = 1;
+                            bits['x'] = 1;
                             OPERAND[len - 2] = '\0';
                         }
 
                         if (OPERAND[0] == '#'){
-                            n_bit = 0;
+                            bits['n'] = 0;
                             OPERAND = OPERAND.substr(1);
                         }else{
-                            n_bit = 1;
+                            bits['n'] = 1;
                         }
 
                         if (OPERAND[0] == '@'){
-                            i_bit = 0;
+                            bits['i'] = 0;
                             OPERAND = OPERAND.substr(1);
                         }else{
-                            i_bit = 1;
+                            bits['i'] = 1;
                         }
 
-                        e_bit = 1;
+                        bits['e'] = 1;
 
-                        modification_records.push({(int)strtol(addr, NULL, 16) + 1, 5, true, OPERAND});
+                        modification_records.push({hexToInt(addr) + 1, 5, true, OPERAND});
                     }
-                    int num_objcode = (int)strtol(info->op_addr.c_str(), NULL, 16) * pow(16, 6);
-                    num_objcode |= ((n_bit << 17) + (i_bit << 16) + (x_bit << 15) + (b_bit << 14) + (p_bit << 13) + (e_bit << 12)) << 8;
+                    int num_objcode = hexToInt(info->op_addr.c_str()) * pow(16, 6);
+                    num_objcode |= ((bits['n'] << 17) + (bits['i'] << 16) + (bits['x'] << 15) + (bits['b'] << 14) + (bits['p'] << 13) + (bits['e'] << 12)) << 8;
                     sprintf(objcode, "%08X", num_objcode);
                 }
             }
@@ -590,23 +579,21 @@ void pass2(){
             }else if (OPCODE=="WORD"){
                 char* operand = &OPERAND[0]; 
                 sprintf(objcode, "%06X", (int)strtol(operand, NULL, 10));
-                cout << OPERAND << endl;
                 int size = readLine(operand, 0, args, "+");
                 if (size == 2){
-                    modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
-                    modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[1]});
+                    modification_records.push({hexToInt(addr), 6, true, (string)args[0]});
+                    modification_records.push({hexToInt(addr), 6, true, (string)args[1]});
                 }else{
                     char* operand = &OPERAND[0];
                     size = readLine(operand, 0, args, "-");
                     if (size == 2){
-                        modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
-                        modification_records.push({(int)strtol(addr, NULL, 16), 6, false, (string)args[1]});
+                        modification_records.push({hexToInt(addr), 6, true, (string)args[0]});
+                        modification_records.push({hexToInt(addr), 6, false, (string)args[1]});
                     }else{
-                        modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
+                        modification_records.push({hexToInt(addr), 6, true, (string)args[0]});
                     }
                 }
             }else if (OPCODE=="EXTREF"){
-                // print refer reocrd
                 fprintf(objectFile, "R");
                 char* operand = &OPERAND[0];
                 int size = readLine(operand, 0, args, ",");
@@ -615,47 +602,40 @@ void pass2(){
                 }
                 fprintf(objectFile, "\n");
             }else if (OPCODE=="EXTDEF"){
-                // print define record
                 fprintf(objectFile, "D");
                 char* operand = &OPERAND[0];
                 int size = readLine(operand, 0, args, ",");
                 for (int i = 0; i < size; i++){
-                    fprintf(objectFile, "%-6s%06X", args[i], (int)strtol(base->search_symtab(args[i]).c_str(), NULL, 16));
+                    fprintf(objectFile, "%-6s%06X", args[i], hexToInt(base->search_symtab(args[i]).c_str()));
                 }
                 fprintf(objectFile, "\n");
             }else if (OPCODE=="LTORG"){
-                // DO THIS
-                // IGNORE
             }else if (OPCODE=="EQU"){
-                // DO THIS
-                cout << OPERAND << endl;
                 char* operand = &OPERAND[0];
                 int size = readLine(operand, 0, args, "+");
                 if (size == 2){
                     string sym = base->search_symtab(args[0]);
-                    int val = (int)strtol(sym.c_str(), NULL, 16);
+                    int val = hexToInt(sym.c_str());
                     sym = base->search_symtab(args[1]);
-                    val += (int)strtol(sym.c_str(), NULL, 16);
+                    val += hexToInt(sym.c_str());
                     sprintf(addr, "%04X", val);
                 }else{
                     char* operand = &OPERAND[0];
                     size = readLine(operand, 0, args, "-");
                     if (size == 2){
                         string sym = base->search_symtab(args[0]);
-                        int val = (int)strtol(sym.c_str(), NULL, 16);
+                        int val = hexToInt(sym.c_str());
                         sym = base->search_symtab(args[1]);
-                        val -= (int)strtol(sym.c_str(), NULL, 16);
+                        val -= hexToInt(sym.c_str());
                         sprintf(addr, "%04X", val);
                     }else if (OPERAND!="*"){
                         string sym = base->search_symtab(args[0]);
-                        int val = (int)strtol(sym.c_str(), NULL, 16);
+                        int val = hexToInt(sym.c_str());
                         sprintf(addr, "%04X", val);
                     }
                 }
-            }else if (OPCODE=="CSECT"){
-                // DO THIS
-                // IGNORE
             }
+            
             if (LABEL[0] == '*'){
                 char* label = &LABEL[0];
                 readLine(label, 0, args, "=");
@@ -676,30 +656,24 @@ void pass2(){
                 }
             }
 
-            // check if new record fits
-            // or for discontinuity in adress
             if (strlen(record) + strlen(objcode) > 60 || OPCODE=="RESW" || OPCODE=="RESB"){
                 if (strlen(record) > 0){
-                    fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
-                            (int)strlen(record) / 2, record);
+                    fprintf(objectFile, "T%06X%02X%s\n", hexToInt(firstaddr),(int)strlen(record) / 2, record);
                 }
                 strcpy(record, "");
             }
 
-            // set start address of record
             if (strlen(record) == 0){
                 strcpy(firstaddr, addr);
             }
             strcat(record, objcode);
 
-            // write listing line
             line[strlen(line) - 1] = '\0';
             fprintf(listFile, "%s%-26s\t%s\n", addr, line, objcode);
         }else{
             fprintf(listFile, "\t%s", line);
         }
 
-        // read next input line
         if (fscanf(intermediateFile, "%[^\t]s", addr) == -1){
             break;
         }
@@ -715,10 +689,8 @@ void pass2(){
         }
     }
 
-    // write last text record
     if (strlen(record) > 1){
-        fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
-                (int)strlen(record) / 2, record);
+        fprintf(objectFile, "T%06X%02X%s\n", hexToInt(firstaddr),(int)strlen(record) / 2, record);
     }
 
     base = symtab_list[PROGNAME];
@@ -729,7 +701,6 @@ void pass2(){
         fprintf(objectFile, "M%06X%02X%s%s\n", rec.addr, rec.length, rec.sign ? "+" : "-", rec.symbol.c_str());
     }
 
-    // write end record
     fprintf(objectFile, "E");
 
     if (first_sect){
