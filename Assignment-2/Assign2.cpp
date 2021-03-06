@@ -12,8 +12,8 @@ using namespace std;
 const int MAXS = 1024;
 const int MAXW = 10;
 
-const int ILEN = 1 ;// Instruction length
-const int WLEN = 1 ;// Word length
+const int ILEN = 1 ;
+const int WLEN = 1 ;
 
 const char *symtabFile = "symbolTable.txt";
 
@@ -30,10 +30,11 @@ unordered_map <string, string> register_list = {
 int ERROR_FLAG = 0;
 
 int PROGLEN;         // store program length
-char PROGNAME[MAXS]; // store program length
+string PROGNAME; // store program length
 int STARTADDR;       // store program length
 
-struct op_code{
+class op_code{
+public:
     string op_addr;
     int format;
 };
@@ -72,60 +73,51 @@ void load_OPTAB(){
     OPTAB["WD"] = {"DC",3};
 }
 
-op_code* search_optab(char *OPCODE){
-	string opcode = OPCODE;
+op_code* search_optab(string opcode){
 	if (OPTAB.find(opcode) != OPTAB.end()){
 		return &OPTAB[opcode];
 	}
 	return NULL;
 }
 
-
-struct symbol_info{
-    string addr;
-};
-
 class symtab{
 public:
-    unordered_map<string, symbol_info> table;
+    map<string, string> table;
     set<string> extref;
     set<string> extdef;
     int length;
 
     symtab(){}
 
-    symbol_info* search_symtab(char *LABEL){
-        string label = LABEL;
-        table.find("RLOOP");
+    string search_symtab(string label){
         if (table.find(label) != table.end()){
-            return &table[label];
+            return table[label];
         }
-        return NULL;
+        return "";
     }
     
-    void insert_symtab(const char *LABEL, int LOCCTR){
+    void insert_symtab(string label, int locctr){
         FILE *filesymtab = fopen(symtabFile, "a");
-        string label = LABEL;
         char addr[MAXW];
-        sprintf(addr, "%0X", LOCCTR);
+        sprintf(addr, "%0X", locctr);
         table[label] = {addr};
-        fprintf(filesymtab, "%s\t%s\n", addr, LABEL);
+        fprintf(filesymtab, "%s\t%s\n", addr, label.c_str());
         fclose(filesymtab);
     }
     
-    void insert_extdef(char *LABEL){
-        extdef.insert((string)LABEL);
-    }
+    // void insert_extdef(string label){
+    //     extdef.insert(label);
+    // }
 
-    void insert_extref(char *LABEL){
-	    extref.insert((string)LABEL);
-    }
+    // void insert_extref(string label){
+	//     extref.insert(label);
+    // }
 
-    void print_symtab(){
-        for (auto i :table){
-            cout << i.first <<" "<< i.second.addr << endl;
-        }
-    }
+    // void print_symtab(){
+    //     for (auto i :table){
+    //         cout << i.first <<" "<< i.second << endl;
+    //     }
+    // }
 };
 
 map<string, symtab *> symtab_list;
@@ -138,86 +130,144 @@ struct modrec {
     string symbol;
 };
 
-int readLine(char *str, int start, char *words[], const char *delimiter=" "){
+int readLine(char *str, int start, char *words[], string delimiter){
 	str = strtok(str, "\n");
 
-	int size = start; // Store number of words
-	char *ptr = strtok(str, delimiter);
+	int size = start; 
+	char *ptr = strtok(str, delimiter.c_str());
 
 	while (ptr != NULL){
 		words[size++] = ptr;
-		ptr = strtok(NULL, delimiter);
+		ptr = strtok(NULL, delimiter.c_str());
 	}
 
 	return size;
 }
 
-int print_literals(int LOCCTR, FILE *outputFile, symtab *base){
-	while (literal_pool.size()){
+int literalsOutput(int locctr, FILE *outputFile, symtab *base){
+	while (true){
+        if(literal_pool.size()==0){
+            break;
+        }
 		string lit = *literal_pool.begin();
-		fprintf(outputFile, "%04X\t*\t%s\n", LOCCTR, lit.c_str());
-		base->insert_symtab(lit.c_str(), LOCCTR);
-		if (lit[1] == 'C'){
-			LOCCTR += lit.length() - 4;
+
+        FILE *filesymtab = fopen(symtabFile, "a");
+        char addr[MAXW];
+        sprintf(addr, "%0X", locctr);
+        base->table[lit] = {addr};
+        fprintf(filesymtab, "%s\t%s\n", addr, lit.c_str());
+        fclose(filesymtab);
+
+        fprintf(outputFile, "%04X\t*\t%s\n", locctr, lit.c_str());
+
+		if(lit[1] == 'C'){
+			locctr += lit.length() - 4;
 		}else{
-			LOCCTR += (lit.length() - 4 + 1) / 2;
+			locctr += (lit.length() - 4 + 1) / 2;
 		}
+
 		literal_pool.erase(literal_pool.begin());
 	}
-	return LOCCTR;
+	return locctr;
 }
 
-FILE *progamFile, *intmediateFile, *objectFile, *listFile;
+int hexToIntSingleChar(char c){
+    int n;
+    if ((c <= '9') && (c >= '0')){
+        n = c - '0';
+    }else{
+        n = c - 'A' + 10;
+    }
+    return n;
+}
+
+int hexToInt(string s){
+    reverse(s.begin(), s.end());
+    int j = 1;
+    int ans = 0;
+    for (int i = 0; i < s.length(); i++){
+        ans += (hexToIntSingleChar(s[i]) * j);
+        j = j * 16;
+    }
+    return ans;
+}
+
+FILE *progamFile, *intermediateFile, *objectFile, *listFile;
+
+string OPCODE, LABEL="", OPERAND;
+int LOCCTR;
+bool extended;
+
+int incrLOCCTR(){
+    if (op_code *info = search_optab(OPCODE)){
+        if (extended){
+            LOCCTR = LOCCTR + (4 * ILEN);
+        }else{
+            LOCCTR = LOCCTR + (info->format * ILEN);
+        }
+    }else if (OPCODE=="WORD"){
+        LOCCTR = LOCCTR + 3;
+    }else if (OPCODE=="RESW"){
+        LOCCTR = LOCCTR + (3 * stoi(OPERAND));
+    }else if (OPCODE=="RESB"){
+        LOCCTR = LOCCTR + stoi(OPERAND);
+    }else if (OPCODE=="BYTE"){
+        if (OPERAND[0] == 'C'){
+            LOCCTR = LOCCTR + ((OPERAND.length())-3);
+        }else if (OPERAND[0] == 'X'){
+            LOCCTR = LOCCTR + (((OPERAND.length())-3+1)/2);
+        }
+    }else{
+        return 1;
+    }
+    return 0;
+}
 
 void pass1(){
 
     fseek(progamFile, 0, SEEK_SET);
 
-    //clear symbol table
-    FILE *st = fopen(symtabFile, "w");
-    fclose(st);
+    int words;
+
+    char *args[MAXW];
 
     char *line = NULL, temp[MAXS];
     size_t len = 0;
-    char *args[MAXW];
-    int words;
-    char *OPCODE, *LABEL, *OPERAND;
 
     // store addresses
-    int LOCCTR;
 
     // read first line
     getline(&line, &len, progamFile);
     strcpy(temp, line);
 
     if(line[0] == ' '){
-        words = readLine(temp, 1, args);
-        LABEL = NULL;
+        words = readLine(temp, 1, args," ");
+        LABEL = "";
         OPCODE = args[1];
     }else{
-        words = readLine(temp, 0, args);
+        words = readLine(temp, 0, args," ");
         LABEL = args[0];
         OPCODE = args[1];
     }
 
     if(strcmp(args[1], "START") == 0){
         OPERAND = args[2];
-        STARTADDR = strtol(OPERAND, NULL, 16);
-        strcpy(PROGNAME, LABEL);
+        STARTADDR = hexToInt(OPERAND);
+        PROGNAME = LABEL;
         LOCCTR = STARTADDR;
 
         // write line to intermediate file
-        fprintf(intmediateFile, "%04X\t%s", LOCCTR, line);
+        fprintf(intermediateFile, "%04X\t%s", LOCCTR, line);
 
         // read next input line
         getline(&line, &len, progamFile);
         strcpy(temp, line);
         if (line[0] == ' '){
-            words = readLine(temp, 1, args);
-            LABEL = NULL;
+            words = readLine(temp, 1, args," ");
+            //LABEL = NULL;
             OPCODE = args[1];
         }else{
-            words = readLine(temp, 0, args);
+            words = readLine(temp, 0, args," ");
             LABEL = args[0];
             OPCODE = args[1];
         }
@@ -226,136 +276,494 @@ void pass1(){
     }
 
     symtab *base = new symtab;
-    symtab_list[(string)PROGNAME] = base;
-    while (strcmp(OPCODE, "END") != 0){
+    symtab_list[PROGNAME] = base;
+    while (OPCODE!="END"){
         if (line[0] != '.'){ // check if not a comment
-            if (strcmp(OPCODE, "CSECT") == 0){
-                // DO THIS
-                LOCCTR = print_literals(LOCCTR, intmediateFile, base);
+            if (OPCODE=="CSECT"){
+                LOCCTR = literalsOutput(LOCCTR, intermediateFile, base);
                 base->length = LOCCTR;
                 base = new symtab;
                 symtab_list[(string)LABEL] = base;
                 LOCCTR = 0;
-            }else if (LABEL){ // check if symbol in label
-                if (base->search_symtab(LABEL)){
-                    printf("Error: Duplicate Symbol. %s\n", LABEL);
+            }else if (LABEL!=""){ // check if symbol in label
+                if (base->search_symtab(LABEL)!=""){
+                    cout<<"Error: Duplicate Symbol."<<LABEL<<endl;
                     exit(0);
                 }else{
                     base->insert_symtab(LABEL, LOCCTR);
                 }
             }
 
-            bool extended = false;
+            extended = false;
 
             if (OPCODE[0] == '+'){
                 extended = true;
-                OPCODE++;
+                OPCODE = OPCODE.substr(1);
             }
 
             if (words > 2){
                 OPERAND = args[2];
                 if (OPERAND[0] == '='){
-                    literal_pool.insert((string)OPERAND);
+                    literal_pool.insert(OPERAND);
                 }
             }
 
             // write line to intermediate file
-            if (strcmp(OPCODE, "EXTDEF") == 0 || strcmp(OPCODE, "EXTREF") == 0 || strcmp(OPCODE, "LTORG") == 0){
-                fprintf(intmediateFile, "    \t%s", line);
+            if (OPCODE=="EXTDEF"|| OPCODE=="EXTREF" || OPCODE=="LTORG"){
+                fprintf(intermediateFile, "    \t%s", line);
             }else{
-                fprintf(intmediateFile, "%04X\t%s", LOCCTR, line);
+                fprintf(intermediateFile, "%04X\t%s", LOCCTR, line);
             }
 
-            if (op_code *info = search_optab(OPCODE)){
-                if (extended){
-                    LOCCTR = LOCCTR + 4 * ILEN;
+            if(incrLOCCTR()==1){
+                if (OPCODE=="EXTREF"){
+                    char *operand = &OPERAND[0];
+                    int size = readLine(operand, 0, args, ",");
+                    int i=0;
+                    while(i < size){
+                        base->extref.insert(args[i]);
+                        i++;
+                    }
+                }else if (OPCODE=="EXTDEF"){
+                    OPERAND = args[2];
+                    char *operand = &OPERAND[0];
+                    int size = readLine(operand, 0, args, ",");
+                    int i=0;
+                    while(i < size){
+                        base->extdef.insert(args[i]);
+                        i++;
+                    }
+                }else if (OPCODE=="LTORG"){
+                    LOCCTR = literalsOutput(LOCCTR, intermediateFile, base);
+                }else if (OPCODE=="EQU"){
+                }else if (OPCODE=="CSECT"){
                 }else{
-                    LOCCTR = LOCCTR + info->format * ILEN;
+                    cout<<"ERROR: INVALID OPERATION CODE."<<endl;
+                    exit(0);
                 }
-            }else if (strcmp(OPCODE, "WORD") == 0){
-                LOCCTR = LOCCTR + 3;
-            }else if (strcmp(OPCODE, "RESW") == 0){
-                LOCCTR = LOCCTR + (3 * strtol(OPERAND, NULL, 10));
-            }else if (strcmp(OPCODE, "RESB") == 0){
-                LOCCTR = LOCCTR + strtol(OPERAND, NULL, 10);
-            }else if (strcmp(OPCODE, "BYTE") == 0){
-                if (OPERAND[0] == 'C'){
-                    LOCCTR = LOCCTR + (strlen(OPERAND)-3);
-                }else if (OPERAND[0] == 'X'){
-                    LOCCTR = LOCCTR + ((strlen(OPERAND)-3+1)/2);
-                }
-            }else if (strcmp(OPCODE, "EXTREF") == 0){
-                // DO THIS
-                int size = readLine(OPERAND, 0, args, ",");
-                for (int i = 0; i < size; i++){
-                    base->insert_extref(args[i]);
-                }
-            }else if (strcmp(OPCODE, "EXTDEF") == 0){
-                // DO THIS
-                OPERAND = args[2];
-                int size = readLine(OPERAND, 0, args, ",");
-                for (int i = 0; i < size; i++){
-                    base->insert_extdef(args[i]);
-                }
-            }else if (strcmp(OPCODE, "LTORG") == 0){
-                // DO THIS
-                LOCCTR = print_literals(LOCCTR, intmediateFile, base);
-            }else if (strcmp(OPCODE, "EQU") == 0){
-                // DO THIS
-            }else if (strcmp(OPCODE, "CSECT") == 0){
-                // DO THIS
-            }else{
-                printf("Error: Invalid operation code. \n");
-                exit(0);
             }
+            
         }else{
-            fprintf(intmediateFile, "    \t%s", line);
+            fprintf(intermediateFile, "    \t%s", line);
         }
 
-        // read next input line
         getline(&line, &len, progamFile);
         strcpy(temp, line);
-        if (line[0] == ' '){
-            words = readLine(temp, 1, args);
-            LABEL = NULL;
+
+        if(line[0]==' '){
+            words = readLine(temp, 1, args," ");
+            LABEL = "";
             OPCODE = args[1];
         }else{
-            words = readLine(temp, 0, args);
+            words = readLine(temp, 0, args," ");
             LABEL = args[0];
             OPCODE = args[1];
         }
     }
 
-    fprintf(intmediateFile, "    \t%s\n", line);
+    fprintf(intermediateFile, "    \t%s\n", line);
 
-    LOCCTR = print_literals(LOCCTR, intmediateFile, base);
-    base->length = LOCCTR;
+    LOCCTR = literalsOutput(LOCCTR, intermediateFile, base);
 
-    // store program length
     PROGLEN = LOCCTR - STARTADDR;
 
+    base->length = LOCCTR;
+
     cout<<"PASS 1 DONE"<<endl;
+}
+
+void pass2(){
+
+    fseek(intermediateFile, 0, SEEK_SET);
+
+    char *line = NULL, temp[MAXS], addr[MAXS];
+    size_t len = 0;
+    char *args[MAXW];
+    int words;
+    OPCODE="";
+    LABEL="";
+    OPERAND="";
+
+    // read first line
+    fscanf(intermediateFile, "%[^\t]s", addr);
+    getline(&line, &len, intermediateFile);
+    strcpy(temp, line);
+    if (line[0] == ' '){
+        words = readLine(temp, 1, args," ");
+        LABEL = "";
+        OPCODE = args[1];
+    }else{
+        words = readLine(temp, 0, args," ");
+        LABEL = args[0];
+        OPCODE = args[1];
+    }
+
+    bool first_sect = true;
+    queue<modrec> modification_records;
+
+    if (OPCODE=="START"){
+        // write listing line
+        fprintf(listFile, "%s%s", addr, line);
+
+        // read next input line
+        fscanf(intermediateFile, "%[^\t]s", addr);
+        getline(&line, &len, intermediateFile);
+        strcpy(temp, line);
+        if (line[0] == ' '){
+            words = readLine(temp, 1, args," ");
+            LABEL = "";
+            OPCODE = args[1];
+        }else{
+            words = readLine(temp, 0, args," ");
+            LABEL = args[0];
+            OPCODE = args[1];
+        }
+    }
+
+    symtab *base = symtab_list[PROGNAME];
+
+    // write header record
+    fprintf(objectFile, "H%-6s%06X%06X\n", PROGNAME.c_str(), STARTADDR, base->length);
+
+    // initialise first text record
+    char record[MAXS] = "";
+    char firstaddr[MAXS];
+    sprintf(firstaddr, "%0X", STARTADDR);
+
+    while((OPCODE!="END") || true){
+        char objcode[MAXS];
+        strcpy(objcode, "");
+        if (line[1] != '.'){ // check line not a comment
+            cout << OPCODE << endl;
+            cout << strlen(record) << endl;
+            if (OPCODE=="CSECT"){
+                // start a new control section
+                base = symtab_list[LABEL];
+
+                // write text record
+                if (strlen(record) > 0){
+                    fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
+                            (int)strlen(record) / 2, record);
+                    strcpy(record, "");
+                }
+
+                // write modification records
+                while (!modification_records.empty()){
+                    modrec rec = modification_records.front();
+                    modification_records.pop();
+                    fprintf(objectFile, "M%06X%02X%s%s\n", rec.addr, rec.length, rec.sign ? "+" : "-", rec.symbol.c_str());
+                }
+
+                // write end record
+                fprintf(objectFile, "E");
+                if (first_sect){
+                    fprintf(objectFile, "E%06X", 0);
+                    first_sect = false;
+                }
+                fprintf(objectFile, "\n\n\n");
+
+                // write head record
+                char* label = &LABEL[0];
+                fprintf(objectFile, "H%-6s%06X%06X\n", label, 0, base->length);
+            }
+
+            // set operand value if available
+            if (words > 2){
+                OPERAND = args[2];
+            }
+
+            extended = false;
+
+            if (OPCODE[0] == '+'){
+                extended = true;
+                OPCODE=OPCODE.substr(1);
+            }
+
+            // check if opcode found
+            if (op_code *info = search_optab(OPCODE)){
+                int n_bit = 0;
+                int i_bit = 0;
+                int x_bit = 0;
+                int b_bit = 0;
+                int p_bit = 0;
+                int e_bit = 0;
+                int operand_value = 0;
+
+                if (info->format == 2){
+                    strcat(objcode, info->op_addr.c_str());
+                    char* operand = &OPERAND[0];
+                    int size = readLine(operand, 0, args, ",");
+                    strcat(objcode, register_list[args[0]].c_str());
+                    if (size == 2){
+                        strcat(objcode, register_list[args[1]].c_str());
+                    }else{
+                        strcat(objcode, "0");
+                    }
+                }else if (info->format == 3 && !extended){
+                    int len = OPERAND.length();
+                    if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
+                        x_bit = 1;
+                        OPERAND[len - 2] = '\0';
+                    }
+
+                    if (words > 2){
+                        if (OPERAND[0] == '#'){
+                            n_bit = 0;
+                            OPERAND = OPERAND.substr(1);
+                        }else{
+                            n_bit = 1;
+                        }
+
+                        if (OPERAND[0] == '@'){
+                            i_bit = 0;
+                            OPERAND = OPERAND.substr(1);
+                        }else{
+                            i_bit = 1;
+                        }
+
+                        if (!isdigit(OPERAND[0])){
+                            string sym = base->search_symtab(OPERAND);
+                            operand_value = (int)strtol(sym.c_str(), NULL, 16) - (int)strtol(addr, NULL, 16) - 3;
+                            if (operand_value < 0){
+                                operand_value += 1 << 12;
+                            }
+                            p_bit = 1;
+                        }else{
+                            p_bit = 0;
+                            char * operand = &OPERAND[0]; 
+                            operand_value = (int)strtol(operand, NULL, 10);
+                        }
+                    }else{
+                        n_bit = 1;
+                        i_bit = 1;
+                    }
+
+                    int num_objcode = (int)strtol(info->op_addr.c_str(), NULL, 16) * pow(16, 4);
+                    num_objcode |= ((n_bit << 17) + (i_bit << 16) + (x_bit << 15) + (b_bit << 14) + (p_bit << 13) + (e_bit << 12));
+                    num_objcode |= operand_value;
+                    sprintf(objcode, "%06X", num_objcode);
+                }else if(info->format == 3 && extended){
+                    if (words > 2){
+                        int len = OPERAND.length();
+                        if (len > 1 && OPERAND[len - 1] == 'X' && OPERAND[len - 2] == ','){
+                            x_bit = 1;
+                            OPERAND[len - 2] = '\0';
+                        }
+
+                        if (OPERAND[0] == '#'){
+                            n_bit = 0;
+                            OPERAND = OPERAND.substr(1);
+                        }else{
+                            n_bit = 1;
+                        }
+
+                        if (OPERAND[0] == '@'){
+                            i_bit = 0;
+                            OPERAND = OPERAND.substr(1);
+                        }else{
+                            i_bit = 1;
+                        }
+
+                        e_bit = 1;
+
+                        modification_records.push({(int)strtol(addr, NULL, 16) + 1, 5, true, OPERAND});
+                    }
+                    int num_objcode = (int)strtol(info->op_addr.c_str(), NULL, 16) * pow(16, 6);
+                    num_objcode |= ((n_bit << 17) + (i_bit << 16) + (x_bit << 15) + (b_bit << 14) + (p_bit << 13) + (e_bit << 12)) << 8;
+                    sprintf(objcode, "%08X", num_objcode);
+                }
+            }
+            else if (OPCODE=="BYTE"){
+                if (OPERAND[0] == 'C'){
+                    int c;
+                    for (int i = 2; i < OPERAND.length() - 1; i++){
+                        int c = OPERAND[i];
+                        char temp[2];
+                        sprintf(temp, "%0X", c);
+                        strcat(objcode, temp);
+                    }
+                }else if (OPERAND[0] == 'X'){
+                    char* operand = &OPERAND[0];
+                    strcat(objcode, operand+2);
+                    objcode[strlen(objcode) - 1] = '\0';
+                }
+            }else if (OPCODE=="WORD"){
+                char* operand = &OPERAND[0]; 
+                sprintf(objcode, "%06X", (int)strtol(operand, NULL, 10));
+                cout << OPERAND << endl;
+                int size = readLine(operand, 0, args, "+");
+                if (size == 2){
+                    modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
+                    modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[1]});
+                }else{
+                    char* operand = &OPERAND[0];
+                    size = readLine(operand, 0, args, "-");
+                    if (size == 2){
+                        modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
+                        modification_records.push({(int)strtol(addr, NULL, 16), 6, false, (string)args[1]});
+                    }else{
+                        modification_records.push({(int)strtol(addr, NULL, 16), 6, true, (string)args[0]});
+                    }
+                }
+            }else if (OPCODE=="EXTREF"){
+                // print refer reocrd
+                fprintf(objectFile, "R");
+                char* operand = &OPERAND[0];
+                int size = readLine(operand, 0, args, ",");
+                for (int i = 0; i < size; i++){
+                    fprintf(objectFile, "%-6s", args[i]);
+                }
+                fprintf(objectFile, "\n");
+            }else if (OPCODE=="EXTDEF"){
+                // print define record
+                fprintf(objectFile, "D");
+                char* operand = &OPERAND[0];
+                int size = readLine(operand, 0, args, ",");
+                for (int i = 0; i < size; i++){
+                    fprintf(objectFile, "%-6s%06X", args[i], (int)strtol(base->search_symtab(args[i]).c_str(), NULL, 16));
+                }
+                fprintf(objectFile, "\n");
+            }else if (OPCODE=="LTORG"){
+                // DO THIS
+                // IGNORE
+            }else if (OPCODE=="EQU"){
+                // DO THIS
+                cout << OPERAND << endl;
+                char* operand = &OPERAND[0];
+                int size = readLine(operand, 0, args, "+");
+                if (size == 2){
+                    string sym = base->search_symtab(args[0]);
+                    int val = (int)strtol(sym.c_str(), NULL, 16);
+                    sym = base->search_symtab(args[1]);
+                    val += (int)strtol(sym.c_str(), NULL, 16);
+                    sprintf(addr, "%04X", val);
+                }else{
+                    char* operand = &OPERAND[0];
+                    size = readLine(operand, 0, args, "-");
+                    if (size == 2){
+                        string sym = base->search_symtab(args[0]);
+                        int val = (int)strtol(sym.c_str(), NULL, 16);
+                        sym = base->search_symtab(args[1]);
+                        val -= (int)strtol(sym.c_str(), NULL, 16);
+                        sprintf(addr, "%04X", val);
+                    }else if (OPERAND!="*"){
+                        string sym = base->search_symtab(args[0]);
+                        int val = (int)strtol(sym.c_str(), NULL, 16);
+                        sprintf(addr, "%04X", val);
+                    }
+                }
+            }else if (OPCODE=="CSECT"){
+                // DO THIS
+                // IGNORE
+            }
+            if (LABEL[0] == '*'){
+                char* label = &LABEL[0];
+                readLine(label, 0, args, "=");
+                OPERAND = args[1];
+                if (OPERAND[0] == 'C'){
+                    int c;
+                    for (int i = 2; i < OPERAND.length() - 1; i++){
+                        int c = OPERAND[i];
+                        char temp[2];
+                        sprintf(temp, "%0X", c);
+                        strcat(objcode, temp);
+                    }
+                }
+                else if (OPERAND[0] == 'X'){
+                    char* operand = &OPERAND[0];
+                    strcat(objcode, operand + 2);
+                    objcode[strlen(objcode) - 1] = '\0';
+                }
+            }
+
+            // check if new record fits
+            // or for discontinuity in adress
+            if (strlen(record) + strlen(objcode) > 60 || OPCODE=="RESW" || OPCODE=="RESB"){
+                if (strlen(record) > 0){
+                    fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
+                            (int)strlen(record) / 2, record);
+                }
+                strcpy(record, "");
+            }
+
+            // set start address of record
+            if (strlen(record) == 0){
+                strcpy(firstaddr, addr);
+            }
+            strcat(record, objcode);
+
+            // write listing line
+            line[strlen(line) - 1] = '\0';
+            fprintf(listFile, "%s%-26s\t%s\n", addr, line, objcode);
+        }else{
+            fprintf(listFile, "\t%s", line);
+        }
+
+        // read next input line
+        if (fscanf(intermediateFile, "%[^\t]s", addr) == -1){
+            break;
+        }
+
+        getline(&line, &len, intermediateFile);
+        strcpy(temp, line);
+        words = readLine(temp, 0, args," ");
+        LABEL = args[0];
+        OPCODE = args[1];
+
+        while (LABEL[0] == ' ' || LABEL[0] == '\t'){
+            LABEL=LABEL.substr(1);
+        }
+    }
+
+    // write last text record
+    if (strlen(record) > 1){
+        fprintf(objectFile, "T%06X%02X%s\n", (int)strtol(firstaddr, NULL, 16),
+                (int)strlen(record) / 2, record);
+    }
+
+    base = symtab_list[PROGNAME];
+
+    while (!modification_records.empty()){
+        modrec rec = modification_records.front();
+        modification_records.pop();
+        fprintf(objectFile, "M%06X%02X%s%s\n", rec.addr, rec.length, rec.sign ? "+" : "-", rec.symbol.c_str());
+    }
+
+    // write end record
+    fprintf(objectFile, "E");
+
+    if (first_sect){
+        fprintf(objectFile, "%06X", 0);
+        first_sect = false;
+    }
+
+    fprintf(objectFile, "\n\n\n");
+
+    cout<<"PASS 2 DONE"<<endl;
 }
 
 int main(){
 
     load_OPTAB();
 
+    FILE *st = fopen(symtabFile, "w");
+    fclose(st);
+
     progamFile = fopen("program.txt", "r");
-    intmediateFile = fopen("intermediate.txt", "w");
+    intermediateFile = fopen("intermediate.txt", "w");
     objectFile = fopen("objectCodeFile.txt", "w");
     listFile = fopen("codeListingFile.txt", "w");
 
     pass1();
 
-    fclose(intmediateFile);
+    fclose(intermediateFile);
 
-    intmediateFile = fopen("intermediate.txt", "r");
+    intermediateFile = fopen("intermediate.txt", "r");
 
-    //pass2(intm, out, list);
+    pass2();
 
     fclose(progamFile);
-    fclose(intmediateFile);
+    fclose(intermediateFile);
     fclose(objectFile);
 
     return 0;

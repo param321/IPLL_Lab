@@ -8,9 +8,10 @@ Command to execute : ./a.out
 #include <bits/stdc++.h>
 using namespace std;
 
-string inputFileName;  		//stores the name of the input file containing the object code of various sections
+//name of the input file containing the object code
+string inputFileName;  		
 
-// control_section_address , program_address and execution address respectively
+//control_section_address, program_address and execution address 
 int controlSecAddr;
 int progAddr;
 int execAddr;	
@@ -34,10 +35,12 @@ public:
 	}
 };
 
-vector<pair<string,es>> EStable;			//stores the external symbol table
+//external symbol table
+vector<pair<string,es>> EStable;	
+
 vector<pair<int,string>> Memory_objcode;	//stores the memory content byte wise : address mapped to Memory_objcode
 
-//searches the vector by name of external symbol name and return index if found else -1
+//searches the vector by name of external symbol name 
 int findIndexBySymbolName(vector<pair<string,es>> table,string symbol){
     int i=0;
 	for(auto it:table){
@@ -49,7 +52,7 @@ int findIndexBySymbolName(vector<pair<string,es>> table,string symbol){
 	return -1;
 }
 
-//searches the vector by address of external symbol name and return index if found else -1
+//searches the vector by address of external symbol name
 int findIndexBySymbolAddr(vector<pair<int,string>> objcode,int addr){
 	int i=0;
 	for(auto it:objcode){
@@ -60,6 +63,7 @@ int findIndexBySymbolAddr(vector<pair<int,string>> objcode,int addr){
 	}
 	return -1;
 } 
+
 
 char intToHexSingleDigit(int n){
     char c;
@@ -148,7 +152,7 @@ int DTypeRecords(vector<string> records){
 	no_of_es = records.size()-1;
 
 	int i=0;
-	while(i<no_of_es){ //for each symbol in the record do
+	while(i<no_of_es){
 		string es_addr;
 		es_addr = "";
 		
@@ -197,7 +201,6 @@ int TTypeRecords(string records){
 	int location = controlSecAddr;
 	location += hexToInt(addr);
 
-	//here you have to put the record somehow
 	int i=9;
 	while(i<records.length()){
 		string temp;
@@ -206,7 +209,6 @@ int TTypeRecords(string records){
 			temp.push_back(records[j]);
 		}
 
-		//store the read record in the memory
 		Memory_objcode.push_back({location,temp});
 
 		location=location+1;
@@ -223,14 +225,14 @@ string ModificationType(string old_val,string symbol_name,string op){
 
 	if(old_val[0]=='F'){
 		long int overflow_handler = (long int)0xFFFFFFFF000000;
-		new_val = overflow_handler; //used as a borrow for doing negative calculatioins with hexadecimal numbers
+		new_val = overflow_handler; //used as a borrow for doing negative calculations with hex numbers
 	}else{
 		new_val = 0;
 	}
 
 	new_val += hexToInt(old_val); 
 
-	//add or sub as per M record
+	//add or sub according to M record
 	if(op.back()=='+'){
 		new_val += EStable[findIndexBySymbolName(EStable,symbol_name)].second.address;
 	}else{
@@ -274,7 +276,6 @@ int MTypeRecords(string records){
 
 
 	string old_val="";
-	//read the old value from the memory
 	int ind[3];
 	for(i=0;i<3;i++){
 		ind[i]=findIndexBySymbolAddr(Memory_objcode,symbolAddr+i);
@@ -286,12 +287,9 @@ int MTypeRecords(string records){
 		}
 	}
 	
-	
 	string str_hex = ModificationType(old_val,symbol_name,sym_len);
 
-
 	int k=0;
-	//store the new val in the memory
 	i=0;
 	while(i<3){
 		if(ind[i]==-1){
@@ -313,7 +311,7 @@ int MTypeRecords(string records){
 	return 1;
 }
 
-//pass 1 of the assembler to handle H and D records
+//pass 1 of the assembler
 int pass1(){
 	
 	input_file.open(inputFileName);
@@ -323,10 +321,11 @@ int pass1(){
 
 	pass1File<<"ControlSec\tSymbolName   Addr    \t Length\n";
 
-	
-	controlSecAddr=progAddr; //assign starting address for relocation
+	//assign starting address for relocation
+	controlSecAddr=progAddr; 
 
-	string current_secname=""; //stores the name of the current control section
+    //stores the name of the current control section
+	string current_secname=""; 
 	int cs_length=0;
 
 	string line="";
@@ -359,7 +358,6 @@ int pass1(){
 				cout<<"ERROR : DUPLICATE SECTION FOUND\n";
 				return -1;
 			}else{
-				//insert the control section in EStable;
 				current_secname=line_w[0];
 				int addR = hexToInt(controlSecAddr_obj);
 				addR += controlSecAddr;
@@ -374,17 +372,18 @@ int pass1(){
 			while(getline(input_file,line,'\n')){
 				vector<string> records=readLineToWords(line);
 
-				if(records[0][0]=='E'){ //end record
+                //if end record
+				if(records[0][0]=='E'){ 
 					break;
 				}
 
-				if(records[0][0]=='D'){ //define records
+                //if define records
+				if(records[0][0]=='D'){ 
 					DTypeRecords(records);
 				}
 			}
 
-			controlSecAddr += hexToInt(csLen); //starting address for next section
-
+			controlSecAddr += hexToInt(csLen);
 		}
 
 	}
@@ -394,7 +393,7 @@ int pass1(){
 	return 1;
 }
 
-//pass 2 of the loader to handle T and M records
+//pass2 of the loader 
 int pass2(){
 
 	input_file.open(inputFileName);
@@ -407,12 +406,12 @@ int pass2(){
 
 	execAddr=progAddr;
 
-	//reading the input file again
+	//reading the input file 
 	while(getline(input_file,line,'\n')){
 
 		vector<string> line_w=readLineToWords(line);
 
-		if(line_w[0][0]=='H'){ //header record indicate start of new control section
+		if(line_w[0][0]=='H'){
 
 			string temp;
 			temp = "";
@@ -428,21 +427,26 @@ int pass2(){
 
 			while(getline(input_file,line,'\n')){
 				vector<string> records=readLineToWords(line);
-				if(records[0][0]=='E'){ //end of section
+
+                //if end of section
+				if(records[0][0]=='E'){
 					break;
 				}
 
-				if(records[0][0]=='T'){ //text record
+                //if text record
+				if(records[0][0]=='T'){ 
 					TTypeRecords(records[0]);
 
 				}
 
-				if(records[0][0]=='M'){ //modification record
+                //if modification record
+				if(records[0][0]=='M'){
 					MTypeRecords(records[0]);
 				}
 			}
 
-			if(line[0]=='E'){ //if address specified in the END record then make exec addr that + controlSecAddr
+            //if address is specified in the END record 
+			if(line[0]=='E'){ 
 				if(line.length()>1){
 					string temp;
 					temp = "";
@@ -454,10 +458,8 @@ int pass2(){
 					execAddr = controlSecAddr + hexToInt(line);
 				}
 			}
-			controlSecAddr +=cs_len; // go to next section
+			controlSecAddr +=cs_len;
 		}
-
-		//jump to location exec addr
 
 	}
 
@@ -466,8 +468,6 @@ int pass2(){
     return 1;
 }
 
-//printing the memory map
-//16 bytes at a time for better readability
 int generate_obj(){
 	
 	pass2File.open("pass2LinkerFile.txt");
@@ -550,5 +550,4 @@ int main(){
 	cout<<"memory table created in pass2File.txt\n";
 
 	generate_obj();
-
 }
