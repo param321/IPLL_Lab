@@ -138,14 +138,13 @@ struct modrec {
     string symbol;
 };
 
-int break_line(char *str, int start, char *words[], const char *delimiter=" "){
+int readLine(char *str, int start, char *words[], const char *delimiter=" "){
 	str = strtok(str, "\n");
 
 	int size = start; // Store number of words
 	char *ptr = strtok(str, delimiter);
 
-	while (ptr != NULL)
-	{
+	while (ptr != NULL){
 		words[size++] = ptr;
 		ptr = strtok(NULL, delimiter);
 	}
@@ -153,19 +152,14 @@ int break_line(char *str, int start, char *words[], const char *delimiter=" "){
 	return size;
 }
 
-int print_literals(int LOCCTR, FILE *outputFile, symtab *base)
-{
-	while (literal_pool.size())
-	{
+int print_literals(int LOCCTR, FILE *outputFile, symtab *base){
+	while (literal_pool.size()){
 		string lit = *literal_pool.begin();
 		fprintf(outputFile, "%04X\t*\t%s\n", LOCCTR, lit.c_str());
 		base->insert_symtab(lit.c_str(), LOCCTR);
-		if (lit[1] == 'C')
-		{
+		if (lit[1] == 'C'){
 			LOCCTR += lit.length() - 4;
-		}
-		else
-		{
+		}else{
 			LOCCTR += (lit.length() - 4 + 1) / 2;
 		}
 		literal_pool.erase(literal_pool.begin());
@@ -197,11 +191,11 @@ void pass1(){
     strcpy(temp, line);
 
     if(line[0] == ' '){
-        words = break_line(temp, 1, args);
+        words = readLine(temp, 1, args);
         LABEL = NULL;
         OPCODE = args[1];
     }else{
-        words = break_line(temp, 0, args);
+        words = readLine(temp, 0, args);
         LABEL = args[0];
         OPCODE = args[1];
     }
@@ -219,11 +213,11 @@ void pass1(){
         getline(&line, &len, progamFile);
         strcpy(temp, line);
         if (line[0] == ' '){
-            words = break_line(temp, 1, args);
+            words = readLine(temp, 1, args);
             LABEL = NULL;
             OPCODE = args[1];
         }else{
-            words = break_line(temp, 0, args);
+            words = readLine(temp, 0, args);
             LABEL = args[0];
             OPCODE = args[1];
         }
@@ -292,14 +286,14 @@ void pass1(){
                 }
             }else if (strcmp(OPCODE, "EXTREF") == 0){
                 // DO THIS
-                int size = break_line(OPERAND, 0, args, ",");
+                int size = readLine(OPERAND, 0, args, ",");
                 for (int i = 0; i < size; i++){
                     base->insert_extref(args[i]);
                 }
             }else if (strcmp(OPCODE, "EXTDEF") == 0){
                 // DO THIS
                 OPERAND = args[2];
-                int size = break_line(OPERAND, 0, args, ",");
+                int size = readLine(OPERAND, 0, args, ",");
                 for (int i = 0; i < size; i++){
                     base->insert_extdef(args[i]);
                 }
@@ -322,11 +316,11 @@ void pass1(){
         getline(&line, &len, progamFile);
         strcpy(temp, line);
         if (line[0] == ' '){
-            words = break_line(temp, 1, args);
+            words = readLine(temp, 1, args);
             LABEL = NULL;
             OPCODE = args[1];
         }else{
-            words = break_line(temp, 0, args);
+            words = readLine(temp, 0, args);
             LABEL = args[0];
             OPCODE = args[1];
         }
