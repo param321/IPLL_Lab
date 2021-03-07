@@ -1,7 +1,7 @@
 /*
 ENVIRONMENT: LINUX g++ 
 gcc version : 9.3.0
-Command To compile the source code : g++ Assign2.cpp
+Command To compile the source code : g++ 180101055_Assign2_assembler.cpp
 Command to execute : ./a.out
 */
 
@@ -104,20 +104,6 @@ public:
         fprintf(filesymtab, "%s\t%s\n", addr, label.c_str());
         fclose(filesymtab);
     }
-    
-    // void insert_extdef(string label){
-    //     extdef.insert(label);
-    // }
-
-    // void insert_extref(string label){
-	//     extref.insert(label);
-    // }
-
-    // void print_symtab(){
-    //     for (auto i :table){
-    //         cout << i.first <<" "<< i.second << endl;
-    //     }
-    // }
 };
 
 map<string, symtab *> symtab_list;
@@ -160,13 +146,17 @@ int literalsOutput(int locctr, FILE *outputFile, symtab *base){
 
         fprintf(outputFile, "%04X\t*\t%s\n", locctr, lit.c_str());
 
-		if(lit[1] == 'C'){
-			locctr += lit.length() - 4;
+		if(lit[1] != 'C'){
+            locctr += (lit.length() - 4 + 1) / 2;
 		}else{
-			locctr += (lit.length() - 4 + 1) / 2;
+			locctr += lit.length() - 4;
 		}
-
-		literal_pool.erase(literal_pool.begin());
+        
+        for(auto it:literal_pool){
+            literal_pool.erase(it);
+            break;
+        }
+		
 	}
 	return locctr;
 }
