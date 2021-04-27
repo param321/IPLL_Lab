@@ -4,100 +4,83 @@
 #include<string.h>
 #include<stdlib.h>
 
-extern int yylineno;
-int yylex(void);
-void yyerror(char const *s);
-
 int error = 1;
 int count = 0;
 int store[500];
 
-// stores tokens and their codes in a table
-struct node
-{
-    int code;
+int setTableType(int x);
+int getTableType(char* s);
+int install_num(int x, char* s);
+int install_id(int x, char* s);
+
+// stores tokens and their codes 
+struct node{
+    int tokenCode;
     char* token;
-    int diff_id;
-    struct node *link;
+    int diffId;
+    struct node *next;
 }* table[7];
 
-void set_type(int x);
-int get_type(char* s);
-void install_num(int x, char* s);
-void install_id(int x, char* s);
+extern int yylineno;
+int yylex(void);
+void yyerror(char const *s);
 
 %}
 
 %start prog
 
-%union
-{
+%union{
 	char* str;
 	int num;
 	char id;
 	char arr[25];
 } 
 
-%left '*' '/'
-%left '+' '-'
-%left UNEG UPOS
-%nonassoc '='
-
-%token tPROGRAM
-%token tVAR
-%token tBEGIN		
-%token tEND		
-%token tEND_		
-%token tINTEGER
-%token tREAL	
-%token tFOR
-%token tREAD		
-%token tWRITE		
 %token tTO		
 %token tDO		
 %token tSEMICOLON	
 %token tCOLON		
+%token <str> tID		
+%token <integer> tINT
+%token <float> tReal
 %token tCOMMA		
 %token tASSIGN	
 %token tADD		
+%token tINTEGER		
+%token tWRITE
 %token tSUBTRACT	
 %token tMULT		
 %token tDIV		
 %token tBRACKET_OPEN	
 %token tBRACKET_CLOSE	
-%token <str> tID		
-%token <integer> tINT
-%token <float> tReal
+%token tPROGRAM
+%token tVAR
+%token tBEGIN		
+%token tEND		
+%token tEND_
+%token tREAL	
+%token tFOR
+%token tREAD	
+
+%left '*' '/'
+%left '+' '-'
+%left UNEG UPOS
+%nonassoc '='
+		
+
 
 %%
 
-prog 			:  tPROGRAM prog_name tVAR dec_list tBEGIN    
-				   stmt_list tEND_ ;
+read 			: tREAD tBRACKET_OPEN id_list tBRACKET_CLOSE ;
 
-prog_name 		: tID ;	
+write 			: tWRITE tBRACKET_OPEN id_list tBRACKET_CLOSE ;	
 
-dec_list 		: dec
- 				| dec_list tSEMICOLON dec ;
+for 			: tFOR index_exp tDO body {}
 
-dec 			:  error dec {
-					yyerror("");
-					printf("Line %d: Semicolon is missing\n", yylineno-1);
-			}
-
-			| dec_id_list tCOLON type ;
-
-			| dec_id_list tCOLON {
-				yyerror("");
-				printf("Line %d: Type name is missing\n", yylineno - 1);
-			}
-
-		        | dec_id_list type {	
-				yyerror("");
-				printf("Line %d: Add colon\n", yylineno);
-			}	
+index_exp 		: tID tASSIGN exp tTO exp ;
 	            
-type 			: tINTEGER {set_type(tINTEGER);}
-				| tREAL {set_type(tREAL);}
+type 			: tINTEGER {setTableType(tINTEGER);}
+				| tREAL {setTableType(tREAL);}
 
 dec_id_list 	: tID {install_id(tID, $1);} 
 				| dec_id_list tCOMMA tID {
@@ -111,209 +94,208 @@ stmt_list 		: stmt ;
 		  		| stmt_list tSEMICOLON stmt ;
 		  	
 stmt 			: assign ;
-				| read ;
+				| error stmt {	
+					yyerror("");
+					printf("Semicolon is Missing in Line %d\n", yylineno);
+				}
 				| write ;
 				| for ;
-				| error stmt 
-				{	
+				| read ;
+				
+
+prog 			:  tPROGRAM prog_name tVAR dec_list tBEGIN    
+				   stmt_list tEND_ ;
+
+prog_name 		: tID ;	
+
+dec_list 		: dec
+ 				| dec_list tSEMICOLON dec ;
+
+dec 			:  error dec {
 					yyerror("");
-					printf("Line %d: Semicolon is missing \n", yylineno);
+					printf("Semicolon Is Missing Line %d\n", yylineno-1);
+				}
+				| dec_id_list type {	
+					yyerror("");
+					printf("Add Colon in \n Line %d", yylineno);
+				}	
+				| dec_id_list tCOLON type ;
+				| dec_id_list tCOLON {
+					yyerror("");
+					printf("Type Name is Missing in Line %d\n", yylineno - 1);
 				}
 
+term 			: factor ;
+				| term tMULT factor ;
+				| term tDIV factor ;
+
+factor 			:  tINT {
+					int typeId = tINTEGER;
+					if(!store[count]){
+						store[count] = typeId ;
+					}else if(store[count] != typeId){
+						store[count] = -1;			
+					}		
+				}
+				| tBRACKET_OPEN exp tBRACKET_CLOSE ;
+				| tID {
+					int typeId = getTableType($1);
+
+					if(!store[count]){
+						store[count] = typeId ;
+					}else if(store[count] != typeId){
+						store[count] = -1;
+					}
+				}	
+			    | tReal {
+			    	int typeId = tREAL;
+					if(!store[count]){
+							store[count] = typeId ;
+					}else if(store[count] != typeId){
+						store[count] = -1;
+					}
+				
+			    }      
+
+body 			: stmt ;
+	 			| tBEGIN stmt_list tEND ;	
 
 assign 			:  tID tASSIGN exp {	
-						
-						if(!findToken($1))
-						{
+						if(!findToken($1)){
 							yyerror("");
-							printf("Line %d: Undeclared variable \n", yylineno);
-						}
-
-						else 
-						{
-							if(store[count] == -1 || get_type($1) != store[count])
-							{
+							printf("Variable Undeclared in Line %d\n", yylineno);
+						}else{
+							if(store[count] == -1 || getTableType($1) != store[count]){
 								yyerror("");
-								printf("Line %d: Assignment type mismatch \n", yylineno);
+								printf("Assignment Type Mismatch Line %d\n", yylineno);
 							}
 						}
 				}
 
 exp 			: term ;
-				| exp tSUBTRACT term ;
 				| exp tADD term ;
-				
-
-term 			: factor ;
-				| term tDIV factor ;
-				| term tMULT factor ;
-			
-
-factor 			:  tINT {
-				int typeId = tINTEGER;
-
-				if(!store[count])
-					store[count] = typeId ;
-					
-				else if(store[count] != typeId)
-					store[count] = -1;					
-				}
-
-
-			    | tReal {
-			    	int typeId = tREAL;
-				
-				if(!store[count])
-				    	store[count] = typeId ;
-						
-				else if(store[count] != typeId)
-					store[count] = -1;
-				
-			    }
-
-			    | tBRACKET_OPEN exp tBRACKET_CLOSE ;
-
-			    | tID {
-					int typeId = get_type($1);
-
-					if(!store[count])
-						store[count] = typeId ;
-
-					else if(store[count] != typeId)
-						store[count] = -1;
-
-				}	  
-
-read 			: tREAD tBRACKET_OPEN id_list tBRACKET_CLOSE ;
-
-write 			: tWRITE tBRACKET_OPEN id_list tBRACKET_CLOSE ;	
-
-for 			: tFOR index_exp tDO body {}
-
-index_exp 		: tID tASSIGN exp tTO exp ;
-
-body 			: stmt ;
-	 			| tBEGIN stmt_list tEND ;	 
+				| exp tSUBTRACT term ;
 
 %%
-/*C code*/
 
-// *** Function To Hash Values *** //
-
-// calculates hash value of a string
+//calculates hash value 
 int hashFunction(char* string){
-    // sum: hashvalue, index of str in the hashtable
     int hash = 0;
     int i = 0;
-    // loop to process each character in str and calculate hashvalue
+    // loop to process each character in string and calculate hash
     for(;string[i] != '\0';){
-        hash *= 69; 
-        hash += (string[i] >= 'A' && string[i] <= 'Z')? (string[i] - 'A') : (string[i] - '0');
+        hash *= 71; 
+		if(string[i] >= 'A' && string[i] <= 'Z'){
+			hash += (string[i] - 'A');
+		}else{
+			hash += (string[i] - '0');
+		}
         hash %= 7;
         i++;
     }
     return hash;
 }
 
-// inserts a given token (along with its code) in the hashtable
-void table_insert(int code, char* token)
-{
-    // value: index in the hashtable where the new object will be stored
-    int value = hashFunction(token);
-    struct node* last = table[value];
+int setTableType(int type){
+	int i=0;
+	while(i<7){
+		struct node *temp = table[i];
+		for(;temp;){
+			if(!(temp->diffId)){
+				temp->diffId = type;
+			}
+			temp = temp->next;
+		}
+		i++;
+	}
+	return 0;
+}
+
+// inserts a given token in the hashtable
+int tableInsert(int code, char* token){
+    struct node* last = table[hashFunction(token)];
 
     // if there is atleast one token in the given index's linked list
-    if(last)
-    {
-        // traverse to the last entry in the linked list 
-        while(last->link)
-            last = last->link;
+    if(last){
+        //traverse to the last entry in the list 
+        for(;last->next;){
+            last = last->next;
+		}
+		struct node* temp;
+		if(last!=NULL){
+			temp = (struct node*) malloc(sizeof(struct node));
+			last->next = temp;
+			temp->token = token;
+			temp->diffId = 0;
+		}
+		temp->next = NULL;
+		temp->tokenCode = code;
 
-        // allocate space and store the token
-        struct node* temp = (struct node*) malloc(sizeof(struct node));
-        temp->code = code;
-        temp->token = token;
-        temp->link = NULL;
-	temp->diff_id = 0;
-
-        last->link = temp;
-        return;
+        return 0;
     }
 
     // if there are no tokens in the given index's linked list
-    struct node* temp = (struct node*) malloc(sizeof(struct node));
-    temp->code = code;
-    temp->token = token;
-    temp->link = NULL;
-    temp->diff_id = 0;
+    struct node* temp ;
+	temp = (struct node*) malloc(sizeof(struct node));
 
-    // assign this token as the first token in this index's linked list
-    table[value] = temp;
-    return;
+    temp->tokenCode = code;
+    temp->token = token;
+    temp->next = NULL;
+    temp->diffId = 0;
+
+    //assign this token as the first token in this index's linked list
+    table[hashFunction(token)] = temp;
+
+    return 0;
 }
 
-// finds a token in the hashtable
+//finds a token in the hashtable
 int findToken(char* token){
 
 	int hash = hashFunction(token);
 	struct node *temp = table[hash];
 
 	// traverse the appropriate linked list 
-	// and return 1 if the token is found
 	while(temp){
-		if(!strcmp(token, temp->token))
+		char* x = temp->token;
+		if(!strcmp(token, x)){
 			return 1;
+		}
 
-		temp = temp->link;
+		temp = temp->next;
 	}
 	// return 0 if the token is not found
 	return 0;
 }
 
-void set_type(int type)
-{
-	for(int i=0; i<7; i++)
-	{
-		struct node *temp = table[i];
-		
-		while(temp) 
-		{
-			if(!(temp->diff_id)) 
-				temp->diff_id = type;
-			temp = temp->link;
-		}
-	}
-}
-
 
 //find type of identifier
-int get_type(char* token)
-{
-	int value = hashFunction(token);
-	struct node* temp = table[value];
+int getTableType(char* token){
+	int hash = hashFunction(token);
+	struct node* temp = table[hash];
 
-	while(temp)
-	{
-		if(!strcmp(token, temp->token))
-			return temp->diff_id;
-
-		temp = temp->link;
+	for(;temp;){
+		char* x = temp->token;
+		if(!strcmp(token, x)){
+			return temp->diffId;
+		}
+		temp = temp->next;
 	}
-
+	//not found
 	return -1;
 }
 
 
 // auxiliary function to insert a new id in the hashtable
-void install_id(int code, char* token)
-{
-    (findToken(token))? :table_insert(code, token); // insert only if the token does not exist
+int install_id(int code, char* token){
+    (findToken(token))? :tableInsert(code, token); // insert only if the token does not exist
+	return 0;
 }
 
 // auxiliary function to insert a new num in the hashtable
-void install_num(int code, char* token)
-{
-    (findToken(token))? :table_insert(code, token); // insert only if the token does not exist
+int install_num(int code, char* token){
+    (findToken(token))? :tableInsert(code, token); // insert only if the token does not exist
+	return 0;
 }
 
 
